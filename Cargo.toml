@@ -1,0 +1,11 @@
+[package]
+name = "agent-status-cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0"
+crossterm = "0.29"
+portable-pty = "0.9"
+signal-hook = "0.3"
+vt100 = "0.16"
