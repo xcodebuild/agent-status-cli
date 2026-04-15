@@ -63,7 +63,13 @@ GitHub Actions builds zip artifacts for:
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 
-Tagged pushes like `v0.1.0` also publish those zip files to GitHub Releases, which is what `install.sh` downloads by default.
+Pushes to `main` or `master` update a rolling `latest` GitHub Release with those zip files, which is what `install.sh` downloads by default.
+
+Tagged pushes like `v0.1.0` also publish versioned GitHub Releases so you can install a pinned build:
+
+```bash
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/xcodebuild/agent-status-cli/master/install.sh | sh -s -- v0.1.0
+```
 
 ## Development
 

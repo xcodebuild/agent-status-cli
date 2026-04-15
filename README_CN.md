@@ -63,7 +63,13 @@ GitHub Actions 会构建下面三个 zip：
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 
-推送 `v0.1.0` 这种 tag 时，workflow 还会把 zip 上传到 GitHub Releases。`install.sh` 默认就是从这里下载。
+推送到 `main` 或 `master` 时，workflow 会更新一个滚动的 `latest` GitHub Release；`install.sh` 默认就是从这里下载。
+
+推送 `v0.1.0` 这种 tag 时，workflow 还会额外发布一个带版本号的 GitHub Release，方便安装固定版本：
+
+```bash
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/xcodebuild/agent-status-cli/master/install.sh | sh -s -- v0.1.0
+```
 
 ## 开发
 

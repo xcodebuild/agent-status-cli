@@ -104,6 +104,13 @@ download_release_asset() {
       return 0
     fi
 
+    echo "Direct latest release download failed; trying explicit latest tag asset" >&2
+    set -- $(for base in $RELEASE_BASES; do printf '%s/releases/download/latest/%s\n' "$base" "$asset"; done)
+    if download_url="$(download_first_available "$output" "$@")"; then
+      printf '%s' "$download_url"
+      return 0
+    fi
+
     echo "Direct latest asset download failed; resolving the latest release tag" >&2
     version="$(resolve_latest_version)"
   fi
