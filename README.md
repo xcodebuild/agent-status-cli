@@ -9,7 +9,7 @@
 Install the latest release:
 
 ```bash
-curl -fsSL https://cdn.jsdelivr.net/gh/xcodebuild/agent-status-cli@master/install.sh | sh
+curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/xcodebuild/agent-status-cli/master/install.sh | sh
 ```
 
 ## Commands

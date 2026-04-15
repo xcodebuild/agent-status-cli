@@ -4,7 +4,7 @@ set -eu
 REPO="${AGENT_STATUS_REPO:-xcodebuild/agent-status-cli}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 VERSION="${1:-${AGENT_STATUS_VERSION:-latest}}"
-RELEASE_BASES="${AGENT_STATUS_RELEASE_BASES:-https://mirror.ghproxy.com/https://github.com/$REPO https://ghfast.top/https://github.com/$REPO https://github.com/$REPO}"
+RELEASE_BASES="${AGENT_STATUS_RELEASE_BASES:-https://gh-proxy.com/https://github.com/$REPO}"
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
