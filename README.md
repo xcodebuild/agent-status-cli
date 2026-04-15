@@ -1,12 +1,9 @@
 # agent-status-cli
 
-[![Build](https://img.shields.io/github/actions/workflow/status/xcodebuild/agent-status-cli/ci.yml?branch=master)](https://github.com/xcodebuild/agent-status-cli/actions)
-[![Release](https://img.shields.io/github/v/release/xcodebuild/agent-status-cli)](https://github.com/xcodebuild/agent-status-cli/releases/latest)
-[![License](https://img.shields.io/github/license/xcodebuild/agent-status-cli/MIT)](LICENSE)
+`agent-status-cli` 把 Claude Code 和 Codex 的当前状态同步到 iTerm2 的标签页标题和颜色上。
 
-[English README](README.md)
 
-`agent-status-cli` 把 Claude Code 和 Codex 的当前状态同步到 iTerm2 的标签页标题和颜色上。| `agent-status-cli` syncs Claude Code and Codex status to iTerm2 tab titles and colors. 
+`agent-status-cli` syncs Claude Code and Codex status to iTerm2 tab titles and colors. 
 
 
 ---
