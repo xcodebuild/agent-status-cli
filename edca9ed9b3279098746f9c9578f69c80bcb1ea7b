@@ -1,0 +1,29 @@
+README_CN.md
+  7db37c33874bf9f1 66-72
+README.md
+  7db37c33874bf9f1 66-72
+install.sh
+  7db37c33874bf9f1 107-113
+.github/workflows/release.yml
+  7db37c33874bf9f1 67,74-78,86-119,124-126,128-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "edca9ed9b3279098746f9c9578f69c80bcb1ea7b",
+  "prompts": {
+    "7db37c33874bf9f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8eed-fa2d-75f2-802b-b82bed86c173",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 68,
+      "total_deletions": 3,
+      "accepted_lines": 68,
+      "overriden_lines": 0
+    }
+  }
+}
