@@ -2,7 +2,7 @@
 set -eu
 
 REPO="${AGENT_STATUS_REPO:-xcodebuild/agent-status-cli}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
+INSTALL_DIR="${INSTALL_DIR:-}"
 VERSION="${1:-${AGENT_STATUS_VERSION:-latest}}"
 RELEASE_BASES="${AGENT_STATUS_RELEASE_BASES:-https://gh-proxy.com/https://github.com/$REPO}"
 
@@ -16,6 +16,44 @@ need_cmd() {
 fail() {
   echo "install.sh: $*" >&2
   exit 1
+}
+
+path_contains_dir() {
+  dir="$1"
+
+  case ":$PATH:" in
+    *":$dir:"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+pick_install_dir() {
+  if [ -n "$INSTALL_DIR" ]; then
+    printf '%s' "$INSTALL_DIR"
+    return
+  fi
+
+  for dir in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin" "$HOME/bin"; do
+    if path_contains_dir "$dir" && [ -d "$dir" ] && [ -w "$dir" ]; then
+      printf '%s' "$dir"
+      return
+    fi
+  done
+
+  old_ifs="${IFS}"
+  IFS=:
+  set -- $PATH
+  IFS="${old_ifs}"
+
+  for dir in "$@"; do
+    [ -n "$dir" ] || continue
+    [ -d "$dir" ] || continue
+    [ -w "$dir" ] || continue
+    printf '%s' "$dir"
+    return
+  done
+
+  printf '%s' "$HOME/.local/bin"
 }
 
 download_to() {
@@ -146,6 +184,7 @@ install_bin() {
 main() {
   need_cmd curl
   need_cmd install
+  INSTALL_DIR="$(pick_install_dir)"
   target="$(resolve_target)"
   version="$VERSION"
   asset="agent-status-cli-${target}.zip"
