@@ -119,7 +119,7 @@ impl TerminalUi {
             return Ok(());
         }
         let mut stdout = self.stdout.lock().unwrap();
-        write!(stdout, "\x1b[22;0t")?;
+        write_terminal_sequence(&mut *stdout, b"\x1b[22;0t")?;
         stdout.flush()?;
         self.pushed_title_stack = true;
         Ok(())
@@ -130,18 +130,19 @@ impl TerminalUi {
 
         if self.title_mode != TitleMode::Off {
             let title = render_title(&self.title_format, self.title_mode, context);
-            write!(stdout, "\x1b]0;{}\x07", sanitize_title(&title))?;
+            let sequence = format!("\x1b]0;{}\x07", sanitize_title(&title));
+            write_terminal_sequence(&mut *stdout, sequence.as_bytes())?;
         }
 
         if self.is_iterm2 && self.color_mode != ColorMode::Off {
             if let Some(color) = color {
-                write!(
-                    stdout,
+                let sequence = format!(
                     "\x1b]6;1;bg;red;brightness;{}\x07\
                      \x1b]6;1;bg;green;brightness;{}\x07\
                      \x1b]6;1;bg;blue;brightness;{}\x07",
                     color.r, color.g, color.b
-                )?;
+                );
+                write_terminal_sequence(&mut *stdout, sequence.as_bytes())?;
             }
         }
 
@@ -152,10 +153,10 @@ impl TerminalUi {
     pub fn restore(&self) -> Result<()> {
         let mut stdout = self.stdout.lock().unwrap();
         if self.title_mode != TitleMode::Off {
-            write!(stdout, "\x1b[23;0t")?;
+            write_terminal_sequence(&mut *stdout, b"\x1b[23;0t")?;
         }
         if self.is_iterm2 && self.color_mode != ColorMode::Off {
-            write!(stdout, "\x1b]6;1;bg;*;default\x07")?;
+            write_terminal_sequence(&mut *stdout, b"\x1b]6;1;bg;*;default\x07")?;
         }
         stdout.flush()?;
         Ok(())
@@ -224,4 +225,8 @@ fn sanitize_title(input: &str) -> String {
         .chars()
         .filter(|ch| *ch != '\u{7}' && *ch != '\u{1b}')
         .collect()
+}
+
+fn write_terminal_sequence(stdout: &mut impl Write, sequence: &[u8]) -> io::Result<()> {
+    stdout.write_all(sequence)
 }
