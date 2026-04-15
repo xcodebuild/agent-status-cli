@@ -1,0 +1,38 @@
+README.md
+  5fe566db97e8411a 12
+README_CN.md
+  5fe566db97e8411a 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "3280976d889069766a489d886af0ea5c88ba62d6",
+  "prompts": {
+    "5fe566db97e8411a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8ee5-8d78-71d0-8329-8e3a885e6d26",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 38,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    },
+    "a66cbc0a54db270e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8ea5-f0f7-7032-b0f8-37b575f683f0",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 118,
+      "total_deletions": 74,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}
