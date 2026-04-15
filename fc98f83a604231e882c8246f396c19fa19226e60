@@ -1,0 +1,27 @@
+README.md
+  8fcf74fc8bc21745 12
+README_CN.md
+  8fcf74fc8bc21745 12
+install.sh
+  8fcf74fc8bc21745 7,21-46,83-96,132-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "fc98f83a604231e882c8246f396c19fa19226e60",
+  "prompts": {
+    "8fcf74fc8bc21745": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8e93-0718-7fa3-a29c-02e5a5fb8923",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 49,
+      "total_deletions": 38,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}
