@@ -1,0 +1,53 @@
+README.md
+  299718cbad898b08 3,5,7,9,11-92
+README_CN.md
+  299718cbad898b08 1-92
+src/args.rs
+  299718cbad898b08 5,154-155,169-174,179-183,188,195,198-199,202-204,209,213-222,231,236,241,246,250,256,262,265,269,274,280,337,339-357,367-378,387,392-402,420,422,424,445,456,475-506,508,513-574
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "ce1acbbc513b7f2aab362ad8fb696009a658ee95",
+  "prompts": {
+    "2008085426727870": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8cd4-6ad6-7a83-b907-88861e15dec2",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 47,
+      "total_deletions": 29,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    },
+    "299718cbad898b08": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8e6a-0d88-7a21-b577-44b982331745",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 368,
+      "total_deletions": 53,
+      "accepted_lines": 368,
+      "overriden_lines": 0
+    },
+    "ed7ca4d5e1285657": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8cd2-13fd-7373-8a5d-6df6e9468934",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 120,
+      "total_deletions": 0,
+      "accepted_lines": 120,
+      "overriden_lines": 0
+    }
+  }
+}
