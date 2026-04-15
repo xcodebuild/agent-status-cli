@@ -4,6 +4,7 @@ set -eu
 REPO="${AGENT_STATUS_REPO:-xcodebuild/agent-status-cli}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 VERSION="${1:-${AGENT_STATUS_VERSION:-latest}}"
+RELEASE_BASES="${AGENT_STATUS_RELEASE_BASES:-https://mirror.ghproxy.com/https://github.com/$REPO https://ghfast.top/https://github.com/$REPO https://github.com/$REPO}"
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -15,6 +16,32 @@ need_cmd() {
 fail() {
   echo "install.sh: $*" >&2
   exit 1
+}
+
+download_to() {
+  url="$1"
+  destination="$2"
+
+  if curl -fL --connect-timeout 10 --retry 2 --retry-delay 1 "$url" -o "$destination"; then
+    return 0
+  fi
+
+  return 1
+}
+
+download_first_available() {
+  output="$1"
+  shift
+
+  for url in "$@"; do
+    echo "Trying $url" >&2
+    if download_to "$url" "$output"; then
+      printf '%s' "$url"
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 resolve_target() {
@@ -52,14 +79,21 @@ resolve_version() {
   fi
 
   need_cmd curl
-  latest_tag="$(
-    curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-      | grep -m 1 '"tag_name"' \
-      | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/'
-  )"
 
-  [ -n "$latest_tag" ] || fail "could not resolve the latest release tag"
-  printf '%s' "$latest_tag"
+  for base in $RELEASE_BASES; do
+    latest_url="$base/releases/latest"
+    echo "Resolving latest release from $latest_url" >&2
+    latest_tag="$(
+      curl -fsSL -o /dev/null -w '%{url_effective}' -L --connect-timeout 10 "$latest_url" \
+        | sed -n 's#.*/tag/\([^/?#]*\).*#\1#p'
+    )"
+    if [ -n "$latest_tag" ]; then
+      printf '%s' "$latest_tag"
+      return
+    fi
+  done
+
+  fail "could not resolve the latest release tag"
 }
 
 extract_zip() {
@@ -91,13 +125,14 @@ main() {
   target="$(resolve_target)"
   version="$(resolve_version)"
   asset="agent-status-cli-${target}.zip"
-  download_url="https://github.com/$REPO/releases/download/$version/$asset"
 
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "$tmpdir"' EXIT INT TERM HUP
 
-  echo "Downloading $download_url"
-  curl -fL "$download_url" -o "$tmpdir/$asset"
+  set -- $(for base in $RELEASE_BASES; do printf '%s/releases/download/%s/%s\n' "$base" "$version" "$asset"; done)
+  download_url="$(download_first_available "$tmpdir/$asset" "$@")" \
+    || fail "could not download release asset: $asset"
+  echo "Downloaded from $download_url"
 
   extract_zip "$tmpdir/$asset" "$tmpdir/unpack"
   mkdir -p "$INSTALL_DIR"

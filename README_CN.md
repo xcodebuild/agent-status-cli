@@ -9,19 +9,7 @@
 安装最新 release：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xcodebuild/agent-status-cli/main/install.sh | sh
-```
-
-安装指定版本：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/xcodebuild/agent-status-cli/main/install.sh | sh -s -- v0.1.0
-```
-
-从源码安装：
-
-```bash
-cargo install --path .
+curl -fsSL https://cdn.jsdelivr.net/gh/xcodebuild/agent-status-cli@master/install.sh | sh
 ```
 
 ## 可执行文件

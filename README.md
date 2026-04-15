@@ -9,19 +9,7 @@
 Install the latest release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xcodebuild/agent-status-cli/main/install.sh | sh
-```
-
-Install a specific release tag:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/xcodebuild/agent-status-cli/main/install.sh | sh -s -- v0.1.0
-```
-
-Build from source:
-
-```bash
-cargo install --path .
+curl -fsSL https://cdn.jsdelivr.net/gh/xcodebuild/agent-status-cli@master/install.sh | sh
 ```
 
 ## Commands
