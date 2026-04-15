@@ -272,7 +272,7 @@ pub fn run(args: Args) -> Result<i32> {
         &cwd,
         args.tool,
         Status::Starting,
-        tool_title.lock().unwrap().clone(),
+        tool_title.lock().unwrap().as_str(),
     )?;
 
     let state_thread = {
@@ -335,7 +335,7 @@ pub fn run(args: Args) -> Result<i32> {
                         &cwd,
                         tool,
                         pending.status,
-                        current_title,
+                        &current_title,
                     ) {
                         debug.write_line(&format!("buffered state update failed: {err}"));
                     }
@@ -352,7 +352,7 @@ pub fn run(args: Args) -> Result<i32> {
                         &cwd,
                         tool,
                         displayed_state,
-                        current_title,
+                        &current_title,
                     ) {
                         debug.write_line(&format!("debounced title update failed: {err}"));
                     }
@@ -561,14 +561,14 @@ fn render_ui(
     cwd: &str,
     tool: Tool,
     status: Status,
-    tool_title: String,
+    tool_title: &str,
 ) -> Result<()> {
     ui.update(
         &TitleContext {
             status,
-            state_label: status.default_label().to_owned(),
-            title_token: title_map[&status].clone(),
-            cwd: cwd.to_owned(),
+            state_label: status.default_label(),
+            title_token: title_map[&status].as_str(),
+            cwd,
             tool,
             tool_title,
         },

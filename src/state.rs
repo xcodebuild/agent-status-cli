@@ -3,21 +3,26 @@ use crate::tool::Tool;
 
 pub struct StateDetector {
     _tool: Tool,
+    normalized: String,
 }
 
 impl StateDetector {
     pub fn new(tool: Tool) -> Self {
-        Self { _tool: tool }
+        Self {
+            _tool: tool,
+            normalized: String::new(),
+        }
     }
 
     pub fn detect(&mut self, screen_text: &str, _tool_title_seen: bool) -> Status {
-        let normalized = normalize(screen_text);
+        normalize_into(&mut self.normalized, screen_text);
+        let normalized = self.normalized.as_str();
 
-        if is_ready(&normalized) {
+        if is_ready(normalized) {
             Status::Ready
-        } else if is_error(&normalized) {
+        } else if is_error(normalized) {
             Status::Error
-        } else if is_busy(&normalized) {
+        } else if is_busy(normalized) {
             Status::Busy
         } else if normalized.trim().is_empty() {
             Status::Starting
@@ -59,19 +64,20 @@ fn contains_any(haystack: &str, needles: &[&str]) -> bool {
     needles.iter().any(|needle| haystack.contains(needle))
 }
 
-fn normalize(input: &str) -> String {
-    input
-        .to_lowercase()
-        .replace('\r', "\n")
-        .chars()
-        .map(|ch| {
-            if ch.is_control() && ch != '\n' {
-                ' '
+fn normalize_into(buffer: &mut String, input: &str) {
+    buffer.clear();
+    buffer.reserve(input.len().saturating_sub(buffer.capacity()));
+
+    for ch in input.chars() {
+        let normalized = if ch == '\r' { '\n' } else { ch };
+        for lower in normalized.to_lowercase() {
+            if lower.is_control() && lower != '\n' {
+                buffer.push(' ');
             } else {
-                ch
+                buffer.push(lower);
             }
-        })
-        .collect::<String>()
+        }
+    }
 }
 
 #[cfg(test)]

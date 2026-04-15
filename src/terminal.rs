@@ -143,13 +143,13 @@ fn tab_color_backend_for_mode(
 }
 
 #[derive(Clone, Debug)]
-pub struct TitleContext {
+pub struct TitleContext<'a> {
     pub status: Status,
-    pub state_label: String,
-    pub title_token: String,
-    pub cwd: String,
+    pub state_label: &'a str,
+    pub title_token: &'a str,
+    pub cwd: &'a str,
     pub tool: Tool,
-    pub tool_title: String,
+    pub tool_title: &'a str,
 }
 
 pub struct TerminalUi {
@@ -257,7 +257,7 @@ impl TerminalUi {
 
         if title != last_rendered.title {
             if let Some(title) = title.as_deref() {
-                let sequence = format!("\x1b]0;{}\x07", sanitize_title(title));
+                let sequence = format!("\x1b]0;{}\x07", title);
                 write_terminal_sequence(&mut *stdout, sequence.as_bytes())?;
                 wrote_output = true;
             }
@@ -371,7 +371,7 @@ impl DebugLog {
     }
 }
 
-fn render_title(template: &str, mode: TitleMode, context: &TitleContext) -> String {
+fn render_title(template: &str, mode: TitleMode, context: &TitleContext<'_>) -> String {
     let template = match mode {
         TitleMode::Off => "",
         TitleMode::StatusOnly => "{title}",
@@ -379,30 +379,63 @@ fn render_title(template: &str, mode: TitleMode, context: &TitleContext) -> Stri
         TitleMode::Combined => template,
     };
 
-    replace_template(template, context)
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .trim()
-        .to_owned()
+    let mut rendered = String::with_capacity(
+        template.len() + context.title_token.len() + context.cwd.len() + context.tool_title.len(),
+    );
+    let mut rest = template;
+    let mut needs_space = false;
+
+    while let Some(start) = rest.find('{') {
+        let (literal, tail) = rest.split_at(start);
+        append_title_segment(&mut rendered, &mut needs_space, literal);
+
+        let Some(end) = tail.find('}') else {
+            append_title_segment(&mut rendered, &mut needs_space, tail);
+            return rendered;
+        };
+
+        let token = &tail[1..end];
+        if let Some(value) = template_value(token, context) {
+            append_title_segment(&mut rendered, &mut needs_space, value);
+        } else {
+            append_title_segment(&mut rendered, &mut needs_space, &tail[..=end]);
+        }
+        rest = &tail[end + 1..];
+    }
+
+    append_title_segment(&mut rendered, &mut needs_space, rest);
+    rendered
 }
 
-fn replace_template(template: &str, context: &TitleContext) -> String {
-    template
-        .replace("{title}", &context.title_token)
-        .replace("{icon}", &context.title_token)
-        .replace("{state}", context.status.as_str())
-        .replace("{label}", &context.state_label)
-        .replace("{cwd}", &context.cwd)
-        .replace("{tool}", context.tool.as_str())
-        .replace("{tool_title}", &context.tool_title)
+fn template_value<'a>(token: &str, context: &'a TitleContext<'a>) -> Option<&'a str> {
+    match token {
+        "title" | "icon" => Some(context.title_token),
+        "state" => Some(context.status.as_str()),
+        "label" => Some(context.state_label),
+        "cwd" => Some(context.cwd),
+        "tool" => Some(context.tool.as_str()),
+        "tool_title" => Some(context.tool_title),
+        _ => None,
+    }
 }
 
-fn sanitize_title(input: &str) -> String {
-    input
-        .chars()
-        .filter(|ch| *ch != '\u{7}' && *ch != '\u{1b}')
-        .collect()
+fn append_title_segment(output: &mut String, needs_space: &mut bool, segment: &str) {
+    for ch in segment.chars() {
+        if ch == '\u{7}' || ch == '\u{1b}' {
+            continue;
+        }
+
+        if ch.is_whitespace() {
+            *needs_space = !output.is_empty();
+            continue;
+        }
+
+        if *needs_space && !output.is_empty() {
+            output.push(' ');
+        }
+        *needs_space = false;
+        output.push(ch);
+    }
 }
 
 fn write_terminal_sequence(stdout: &mut impl Write, sequence: &[u8]) -> io::Result<()> {
@@ -583,6 +616,37 @@ mod tests {
         with_terminal_env(Some("iTerm.app"), None, None, || {
             assert_eq!(detect_tab_color_backend(), TabColorBackend::Osc6);
         });
+    }
+
+    fn sample_title_context<'a>() -> TitleContext<'a> {
+        TitleContext {
+            status: Status::Ready,
+            state_label: "Ready",
+            title_token: "🟢",
+            cwd: "agent-status-cli",
+            tool: Tool::Codex,
+            tool_title: "Fix  \n\t bug\u{7}\u{1b}",
+        }
+    }
+
+    #[test]
+    fn renders_title_in_single_pass_with_collapsed_whitespace() {
+        let context = sample_title_context();
+
+        assert_eq!(
+            render_title("{title} {tool_title}", TitleMode::Combined, &context),
+            "🟢 Fix bug"
+        );
+    }
+
+    #[test]
+    fn preserves_unknown_template_tokens_as_literals() {
+        let context = sample_title_context();
+
+        assert_eq!(
+            render_title("{unknown} {tool}", TitleMode::Combined, &context),
+            "{unknown} codex"
+        );
     }
 
     #[test]
