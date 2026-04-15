@@ -72,12 +72,7 @@ resolve_target() {
   esac
 }
 
-resolve_version() {
-  if [ "$VERSION" != "latest" ]; then
-    printf '%s' "$VERSION"
-    return
-  fi
-
+resolve_latest_version() {
   need_cmd curl
 
   for base in $RELEASE_BASES; do
@@ -94,6 +89,28 @@ resolve_version() {
   done
 
   fail "could not resolve the latest release tag"
+}
+
+download_release_asset() {
+  output="$1"
+  version="$2"
+  asset="$3"
+
+  if [ "$version" = "latest" ]; then
+    echo "Attempting direct latest asset download for $asset" >&2
+    set -- $(for base in $RELEASE_BASES; do printf '%s/releases/latest/download/%s\n' "$base" "$asset"; done)
+    if download_url="$(download_first_available "$output" "$@")"; then
+      printf '%s' "$download_url"
+      return 0
+    fi
+
+    echo "Direct latest asset download failed; resolving the latest release tag" >&2
+    version="$(resolve_latest_version)"
+  fi
+
+  set -- $(for base in $RELEASE_BASES; do printf '%s/releases/download/%s/%s\n' "$base" "$version" "$asset"; done)
+  download_url="$(download_first_available "$output" "$@")" || return 1
+  printf '%s' "$download_url"
 }
 
 extract_zip() {
@@ -123,14 +140,13 @@ main() {
   need_cmd curl
   need_cmd install
   target="$(resolve_target)"
-  version="$(resolve_version)"
+  version="$VERSION"
   asset="agent-status-cli-${target}.zip"
 
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "$tmpdir"' EXIT INT TERM HUP
 
-  set -- $(for base in $RELEASE_BASES; do printf '%s/releases/download/%s/%s\n' "$base" "$version" "$asset"; done)
-  download_url="$(download_first_available "$tmpdir/$asset" "$@")" \
+  download_url="$(download_release_asset "$tmpdir/$asset" "$version" "$asset")" \
     || fail "could not download release asset: $asset"
   echo "Downloaded from $download_url"
 
