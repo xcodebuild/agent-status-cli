@@ -13,10 +13,10 @@ impl StateDetector {
     pub fn detect(&mut self, screen_text: &str, _tool_title_seen: bool) -> Status {
         let normalized = normalize(screen_text);
 
-        if contains_any(&normalized, &["error", "failed", "traceback", "panic"]) {
-            Status::Error
-        } else if is_ready(&normalized) {
+        if is_ready(&normalized) {
             Status::Ready
+        } else if is_error(&normalized) {
+            Status::Error
         } else if is_busy(&normalized) {
             Status::Busy
         } else if normalized.trim().is_empty() {
@@ -36,6 +36,23 @@ fn is_ready(normalized: &str) -> bool {
 
 fn is_busy(normalized: &str) -> bool {
     contains_any(normalized, &["esc to interrupt", "press esc to interrupt"])
+}
+
+fn is_error(normalized: &str) -> bool {
+    contains_any(
+        normalized,
+        &["traceback (most recent call last)", "panicked at"],
+    ) || normalized.lines().any(is_error_line)
+}
+
+fn is_error_line(line: &str) -> bool {
+    let line = line.trim_start();
+
+    line.starts_with("error:")
+        || line.starts_with("fatal:")
+        || line.starts_with("panic:")
+        || line.starts_with("traceback")
+        || line.starts_with("failed to ")
 }
 
 fn contains_any(haystack: &str, needles: &[&str]) -> bool {
@@ -94,6 +111,27 @@ mod tests {
         let mut detector = StateDetector::new(Tool::Claude);
         let state = detector.detect("Traceback (most recent call last)", true);
         assert_eq!(state, Status::Error);
+    }
+
+    #[test]
+    fn prefers_ready_over_stale_error_text() {
+        let mut detector = StateDetector::new(Tool::Codex);
+        let state = detector.detect("error: previous step failed\n> \nEnter to send", true);
+        assert_eq!(state, Status::Ready);
+    }
+
+    #[test]
+    fn detects_explicit_error_prefix() {
+        let mut detector = StateDetector::new(Tool::Codex);
+        let state = detector.detect("error: failed to connect to MCP server", true);
+        assert_eq!(state, Status::Error);
+    }
+
+    #[test]
+    fn ignores_generic_failed_wording_without_error_shape() {
+        let mut detector = StateDetector::new(Tool::Claude);
+        let state = detector.detect("test result: ok. 0 failed; 12 passed", true);
+        assert_eq!(state, Status::Ready);
     }
 
     #[test]
