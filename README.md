@@ -1,12 +1,92 @@
 # agent-status-cli
 
-agent-status-cli 是一个 Rust 实现的高性能 CLI 工具，让你的 Claude Code/CodeX CLI 根据当前工作状态自动修改 Terminal 的颜色（iTerm2 支持）和标题。
+[中文说明](README_CN.md)
 
-## Why
-- Terminal 不同 Tab 多 Agent 并行很难分辨各自的状态
-- 虽然有些 Terminal 对部分工具做了支持，但更换 Terminal 的成本太高
+`agent-status-cli` wraps an interactive coding CLI in a PTY and mirrors its current state into your terminal tab title and, in iTerm2, the tab color. It is designed for running multiple agent sessions side by side without losing track of which tab is busy, ready, starting, or broken.
 
-## 如何安装
+## Quick Start
 
-## 如何使用
+Install the latest release:
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/xcodebuild/agent-status-cli/main/install.sh | sh
+```
+
+Install a specific release tag:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xcodebuild/agent-status-cli/main/install.sh | sh -s -- v0.1.0
+```
+
+Build from source:
+
+```bash
+cargo install --path .
+```
+
+## Commands
+
+The project ships three executables:
+
+- `agent-status-cli`: generic wrapper, choose the tool with `--asc-tool`.
+- `asc-codex`: fast path for `codex`; all following arguments are passed through.
+- `asc-claude`: fast path for `claude`; all following arguments are passed through.
+
+Examples:
+
+```bash
+agent-status-cli --asc-tool codex
+agent-status-cli --asc-tool claude resume --continue
+
+asc-codex --model gpt-5
+asc-codex exec "fix the failing test"
+asc-codex --asc-title-map ready=✅
+
+asc-claude
+asc-claude resume --continue
+```
+
+Wrapper options are now the arguments prefixed with `--asc-`. Everything else is passed through to `codex` or `claude` unchanged. If you want to stop wrapper parsing explicitly, use `--`:
+
+```bash
+agent-status-cli --asc-tool codex --asc-title-map ready=✅ --model gpt-5
+agent-status-cli --asc-tool codex -- --help
+```
+
+## Behavior
+
+- Status is inferred from the wrapped CLI screen output.
+- Tab titles are updated through OSC title sequences.
+- Tab colors are updated only when running inside iTerm2.
+- `--asc-keep-alt-screen` is kept as a compatibility no-op; the wrapper currently preserves the wrapped CLI screen behavior as-is.
+
+Default state mappings:
+
+- `starting` -> `⏳`
+- `busy` -> `⚙️`
+- `ready` -> `🟢`
+- `error` -> `🔴`
+
+## Release Artifacts
+
+GitHub Actions builds zip artifacts for:
+
+- `x86_64-unknown-linux-gnu`
+- `x86_64-apple-darwin`
+- `aarch64-apple-darwin`
+
+Tagged pushes like `v0.1.0` also publish those zip files to GitHub Releases, which is what `install.sh` downloads by default.
+
+## Development
+
+Run tests:
+
+```bash
+cargo test
+```
+
+Show help:
+
+```bash
+cargo run -- --asc-help
+```

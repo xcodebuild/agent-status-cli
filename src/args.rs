@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
+use std::path::Path;
 use std::path::PathBuf;
 
 use crate::terminal::RgbColor;
@@ -150,6 +151,8 @@ pub enum ParseOutcome {
     Help(String),
 }
 
+const WRAPPER_FLAG_PREFIX: &str = "--asc-";
+
 pub fn parse_env_args() -> Result<ParseOutcome, String> {
     parse_args(env::args_os())
 }
@@ -163,42 +166,60 @@ where
     let program = argv
         .next()
         .unwrap_or_else(|| OsString::from("agent-status-cli"));
-    let mut saw_tool = false;
+    let inferred_tool = infer_tool_from_program(&program);
+    if let Some(tool) = inferred_tool {
+        args.tool = tool;
+        args.cli_bin = tool.default_bin().to_owned();
+    }
+    let mut saw_tool = inferred_tool.is_some();
     let mut saw_wrapper_arg = false;
 
     let mut passthrough = Vec::new();
     if argv.peek().is_none() {
-        return Ok(ParseOutcome::Help(help_text(&program)));
+        return if inferred_tool.is_some() {
+            Ok(ParseOutcome::Run(args))
+        } else {
+            Ok(ParseOutcome::Help(help_text(&program)))
+        };
     }
 
     while let Some(raw) = argv.next() {
         if raw == OsStr::new("--") {
+            passthrough.push(raw);
             passthrough.extend(argv);
             break;
         }
 
         let Some(arg) = raw.to_str() else {
             passthrough.push(raw);
-            passthrough.extend(argv);
-            break;
+            continue;
         };
 
-        if !arg.starts_with('-') || arg == "-" {
-            passthrough.push(raw);
-            passthrough.extend(argv);
-            break;
+        if arg == "--asc-help" {
+            return Ok(ParseOutcome::Help(help_text(&program)));
         }
 
-        if arg == "-h" || arg == "--help" {
-            return Ok(ParseOutcome::Help(help_text(&program)));
+        if !arg.starts_with(WRAPPER_FLAG_PREFIX) {
+            passthrough.push(raw);
+            continue;
         }
 
         let (flag, inline_value) = split_long_option(arg);
         match flag {
-            "--tool" => {
+            "--asc-tool" => {
                 saw_wrapper_arg = true;
                 let value = next_value(flag, inline_value, &mut argv)?;
                 let tool: Tool = value.parse()?;
+                if let Some(inferred_tool) = inferred_tool
+                    && inferred_tool != tool
+                {
+                    return Err(format!(
+                        "{} is pinned to '{}'; use agent-status-cli --asc-tool {} if you need to switch tools",
+                        program.to_string_lossy(),
+                        inferred_tool,
+                        tool
+                    ));
+                }
                 args.tool = tool;
                 saw_tool = true;
                 if args.cli_bin == Tool::Codex.default_bin()
@@ -207,60 +228,56 @@ where
                     args.cli_bin = tool.default_bin().to_owned();
                 }
             }
-            "--cli-bin" | "--codex-bin" => {
+            "--asc-cli-bin" | "--asc-codex-bin" => {
                 saw_wrapper_arg = true;
                 let value = next_value(flag, inline_value, &mut argv)?;
                 args.cli_bin = value;
             }
-            "--title-mode" => {
+            "--asc-title-mode" => {
                 saw_wrapper_arg = true;
                 let value = next_value(flag, inline_value, &mut argv)?;
                 args.title_mode = value.parse()?;
             }
-            "--color-mode" => {
+            "--asc-color-mode" => {
                 saw_wrapper_arg = true;
                 let value = next_value(flag, inline_value, &mut argv)?;
                 args.color_mode = value.parse()?;
             }
-            "--title-format" => {
+            "--asc-title-format" => {
                 saw_wrapper_arg = true;
                 args.title_format = next_value(flag, inline_value, &mut argv)?;
             }
-            "--title-map" => {
+            "--asc-title-map" => {
                 saw_wrapper_arg = true;
                 let value = next_value(flag, inline_value, &mut argv)?;
                 let (state, mapped) = parse_status_mapping(&value)?;
                 args.title_map.insert(state, mapped);
             }
-            "--color-map" => {
+            "--asc-color-map" => {
                 saw_wrapper_arg = true;
                 let value = next_value(flag, inline_value, &mut argv)?;
                 let (state, mapped) = parse_color_mapping(&value)?;
                 args.color_map.insert(state, mapped);
             }
-            "--keep-alt-screen" => {
+            "--asc-keep-alt-screen" => {
                 saw_wrapper_arg = true;
                 if inline_value.is_some() {
-                    return Err("--keep-alt-screen does not accept a value".to_owned());
+                    return Err("--asc-keep-alt-screen does not accept a value".to_owned());
                 }
                 args.keep_alt_screen = true;
             }
-            "--debug-log" => {
+            "--asc-debug-log" => {
                 saw_wrapper_arg = true;
                 let value = next_value(flag, inline_value, &mut argv)?;
                 args.debug_log = Some(PathBuf::from(value));
             }
-            _ => {
-                passthrough.push(raw);
-                passthrough.extend(argv);
-                break;
-            }
+            _ => return Err(format!("unknown wrapper option '{flag}'")),
         }
     }
 
     args.passthrough_args = passthrough;
     if !saw_tool && (saw_wrapper_arg || !args.passthrough_args.is_empty()) {
-        return Err("missing required --tool <codex|claude>".to_owned());
+        return Err("missing required --asc-tool <codex|claude>".to_owned());
     }
     Ok(ParseOutcome::Run(args))
 }
@@ -317,7 +334,27 @@ fn parse_color_mapping(input: &str) -> Result<(Status, RgbColor), String> {
 }
 
 pub fn help_text(program: &OsStr) -> String {
+    let inferred_tool = infer_tool_from_program(program);
     let program = program.to_string_lossy();
+    let tool_help = match inferred_tool {
+        Some(tool) => format!(
+            "  --asc-tool <codex|claude>   Optional here. {program} is pinned to {tool}"
+        ),
+        None => {
+            "  --asc-tool <codex|claude>   Select which CLI to wrap. Required".to_owned()
+        }
+    };
+    let examples = match inferred_tool {
+        Some(Tool::Codex) => format!(
+            "  {program}\n  {program} --model gpt-5\n  {program} --asc-title-map ready=✅"
+        ),
+        Some(Tool::Claude) => format!(
+            "  {program}\n  {program} resume --continue\n  {program} --asc-title-format \"{{title}} {{tool_title}}\""
+        ),
+        None => format!(
+            "  {program} --asc-tool codex\n  {program} --asc-tool codex --asc-title-map ready=✅ --asc-color-map error=#d50000\n  {program} --asc-tool claude --asc-title-format \"{{title}} {{tool_title}}\"\n  {program} --asc-tool codex --model gpt-5\n  asc-codex --model gpt-5\n  asc-claude resume --continue"
+        ),
+    };
     format!(
         "\
 {program} wraps a supported interactive CLI in a PTY and mirrors its visible state into the terminal tab title and iTerm2 tab color.
@@ -327,16 +364,18 @@ Usage:
   {program} [wrapper options] -- [tool args...]
 
 Wrapper options:
-  --tool <codex|claude>       Select which CLI to wrap. Required
-  --cli-bin <path-or-name>    Override the executable used for the selected tool
-  --title-mode <mode>         off | status | tool | combined. Default: combined
-  --color-mode <mode>         off | auto | on. Default: auto
-  --title-format <template>   Template fields: {{title}} {{icon}} {{state}} {{label}} {{cwd}} {{tool}} {{tool_title}}
-  --title-map <state=value>   Override one title mapping. Repeatable
-  --color-map <state=#RRGGBB> Override one color mapping. Repeatable
-  --keep-alt-screen           Do not inject tool-specific no-alt-screen arguments
-  --debug-log <path>          Write wrapper debug logs to a file
-  -h, --help                  Show this help
+{tool_help}
+  --asc-cli-bin <path-or-name>    Override the executable used for the selected tool
+  --asc-title-mode <mode>         off | status | tool | combined. Default: combined
+  --asc-color-mode <mode>         off | auto | on. Default: auto
+  --asc-title-format <template>   Template fields: {{title}} {{icon}} {{state}} {{label}} {{cwd}} {{tool}} {{tool_title}}
+  --asc-title-map <state=value>   Override one title mapping. Repeatable
+  --asc-color-map <state=#RRGGBB> Override one color mapping. Repeatable
+  --asc-keep-alt-screen           Compatibility no-op; alternate screen is preserved by default
+  --asc-debug-log <path>          Write wrapper debug logs to a file
+  --asc-help                      Show this help
+
+All non --asc-* arguments are passed through to the wrapped CLI unchanged.
 
 Defaults:
   starting=⏳
@@ -345,12 +384,22 @@ Defaults:
   error=🔴
 
 Examples:
-  {program} --tool codex
-  {program} --tool codex --title-map ready=✅ --color-map error=#d50000
-  {program} --tool claude --title-format \"{{title}} {{tool_title}}\"
-  {program} --tool codex -- --model gpt-5
+{examples}
 "
     )
+}
+
+fn infer_tool_from_program(program: &OsStr) -> Option<Tool> {
+    let name = Path::new(program)
+        .file_stem()
+        .and_then(OsStr::to_str)?
+        .to_ascii_lowercase();
+
+    match name.as_str() {
+        "asc-codex" => Some(Tool::Codex),
+        "asc-claude" => Some(Tool::Claude),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -368,11 +417,11 @@ mod tests {
     fn parses_front_loaded_wrapper_args_and_passthrough() {
         let args = parse_ok(&[
             "tool",
-            "--tool",
+            "--asc-tool",
             "claude",
-            "--title-map",
+            "--asc-title-map",
             "ready=✅",
-            "--color-map=error=#112233",
+            "--asc-color-map=error=#112233",
             "resume",
             "--continue",
         ]);
@@ -393,7 +442,7 @@ mod tests {
     #[test]
     fn rejects_invalid_state_names() {
         let err = parse_args(
-            ["tool", "--title-map", "broken=oops"]
+            ["tool", "--asc-title-map", "broken=oops"]
                 .into_iter()
                 .map(OsString::from),
         )
@@ -404,7 +453,7 @@ mod tests {
     #[test]
     fn rejects_invalid_color_values() {
         let err = parse_args(
-            ["tool", "--color-map", "ready=green"]
+            ["tool", "--asc-color-map", "ready=green"]
                 .into_iter()
                 .map(OsString::from),
         )
@@ -423,11 +472,105 @@ mod tests {
     #[test]
     fn requires_explicit_tool_selection() {
         let err = parse_args(
-            ["tool", "--title-map", "ready=✅", "resume"]
+            ["tool", "--asc-title-map", "ready=✅", "resume"]
                 .into_iter()
                 .map(OsString::from),
         )
         .unwrap_err();
-        assert!(err.contains("missing required --tool"));
+        assert!(err.contains("missing required --asc-tool"));
+    }
+
+    #[test]
+    fn infers_codex_tool_from_alias_binary_name() {
+        let args = parse_ok(&["asc-codex", "--model", "gpt-5"]);
+        assert_eq!(args.tool, Tool::Codex);
+        assert_eq!(args.cli_bin, "codex");
+        assert_eq!(
+            args.passthrough_args,
+            vec![OsString::from("--model"), OsString::from("gpt-5")]
+        );
+    }
+
+    #[test]
+    fn infers_claude_tool_from_alias_binary_name() {
+        let args = parse_ok(&["asc-claude", "resume", "--continue"]);
+        assert_eq!(args.tool, Tool::Claude);
+        assert_eq!(args.cli_bin, "claude");
+        assert_eq!(
+            args.passthrough_args,
+            vec![OsString::from("resume"), OsString::from("--continue")]
+        );
+    }
+
+    #[test]
+    fn rejects_conflicting_tool_override_for_alias_binary_name() {
+        let err = parse_args(
+            ["asc-codex", "--asc-tool", "claude"]
+                .into_iter()
+                .map(OsString::from),
+        )
+        .unwrap_err();
+        assert!(err.contains("asc-codex is pinned to 'codex'"));
+    }
+
+    #[test]
+    fn passes_through_non_prefixed_args_before_wrapper_args() {
+        let args = parse_ok(&[
+            "tool",
+            "--model",
+            "gpt-5",
+            "--asc-tool",
+            "codex",
+            "--asc-debug-log",
+            "/tmp/asc.log",
+            "exec",
+        ]);
+
+        assert_eq!(args.tool, Tool::Codex);
+        assert_eq!(args.debug_log, Some(PathBuf::from("/tmp/asc.log")));
+        assert_eq!(
+            args.passthrough_args,
+            vec![
+                OsString::from("--model"),
+                OsString::from("gpt-5"),
+                OsString::from("exec")
+            ]
+        );
+    }
+
+    #[test]
+    fn alias_binary_runs_without_passthrough_args() {
+        let args = parse_ok(&["asc-codex"]);
+        assert_eq!(args.tool, Tool::Codex);
+        assert!(args.passthrough_args.is_empty());
+    }
+
+    #[test]
+    fn passes_through_plain_help_flag() {
+        let args = parse_ok(&["asc-codex", "--help"]);
+        assert_eq!(args.passthrough_args, vec![OsString::from("--help")]);
+    }
+
+    #[test]
+    fn preserves_explicit_passthrough_delimiter() {
+        let args = parse_ok(&[
+            "tool",
+            "--asc-tool",
+            "codex",
+            "--",
+            "--help",
+            "--asc-title-map",
+            "ready=✅",
+        ]);
+
+        assert_eq!(
+            args.passthrough_args,
+            vec![
+                OsString::from("--"),
+                OsString::from("--help"),
+                OsString::from("--asc-title-map"),
+                OsString::from("ready=✅")
+            ]
+        );
     }
 }
