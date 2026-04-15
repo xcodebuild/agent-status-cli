@@ -19,6 +19,16 @@ asc-codex
 asc-claude
 ```
 
+Preview:
+
+Shown in iTerm2 with `Tab bar location` set to `Left`.
+
+![agent-status-cli preview](https://img.cdn1.vip/i/69def8deb0077_1776220382.webp)
+
+Shown in iTerm2 with `Tab bar location` set to `Top`.
+
+![agent-status-cli preview top](https://img.cdn1.vip/i/69def996cb76d_1776220566.webp)
+
 ## Commands
 
 The project ships three executables:

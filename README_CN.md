@@ -19,6 +19,16 @@ asc-codex
 asc-claude
 ```
 
+预览：
+
+下图为 iTerm2 将 `Tab bar location` 设为 `Left` 时的效果。
+
+![agent-status-cli preview](https://img.cdn1.vip/i/69def8deb0077_1776220382.webp)
+
+下图为 iTerm2 将 `Tab bar location` 设为 `Top` 时的效果。
+
+![agent-status-cli preview top](https://img.cdn1.vip/i/69def996cb76d_1776220566.webp)
+
 ## 可执行文件
 
 项目会安装三个命令：
