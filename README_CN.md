@@ -2,7 +2,7 @@
 
 [English README](README.md)
 
-`agent-status-cli` 会把 Claude Code 和 Codex 的状态同步到 iTerm2 的标签页标题和颜色上。
+`agent-status-cli` 会把 Claude Code 和 Codex 的状态同步到终端标签页标题和颜色上。
 
 ---
 
@@ -64,7 +64,10 @@ agent-status-cli --asc-tool codex -- --help
 
 - 状态根据被包装 CLI 当前屏幕输出推断。
 - 标签页标题通过 OSC title 序列更新。
-- 标签页颜色只会在 iTerm2 中更新。
+- 标签页颜色会在 iTerm2 和 kitty 里自动更新。
+- iTerm2 走 OSC 6 tab color 序列，只应用活跃标签颜色。
+- kitty 走 `kitten @ set-tab-color --self`；如果存在 `KITTY_LISTEN_ON` 会自动补 `--to`。活跃标签使用状态色，不活跃标签自动使用同色系的压暗版本。
+- 如果别的终端也兼容 iTerm2 的 OSC 6 tab color，可以用 `--asc-color-mode on` 手动强制发出序列。
 - `--asc-keep-alt-screen` 目前保留为兼容用的空操作；包装器现在不会额外改动底层 CLI 的屏幕行为。
 
 默认状态映射：

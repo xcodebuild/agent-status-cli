@@ -357,7 +357,7 @@ pub fn help_text(program: &OsStr) -> String {
     };
     format!(
         "\
-{program} wraps a supported interactive CLI in a PTY and mirrors its visible state into the terminal tab title and iTerm2 tab color.
+{program} wraps a supported interactive CLI in a PTY and mirrors its visible state into the terminal tab title and supported terminal tab color.
 
 Usage:
   {program} [wrapper options] [tool args...]
@@ -367,10 +367,10 @@ Wrapper options:
 {tool_help}
   --asc-cli-bin <path-or-name>    Override the executable used for the selected tool
   --asc-title-mode <mode>         off | status | tool | combined. Default: combined
-  --asc-color-mode <mode>         off | auto | on. Default: auto
+  --asc-color-mode <mode>         off | auto | on. Default: auto; 'on' forces compatible tab-color emission
   --asc-title-format <template>   Template fields: {{title}} {{icon}} {{state}} {{label}} {{cwd}} {{tool}} {{tool_title}}
   --asc-title-map <state=value>   Override one title mapping. Repeatable
-  --asc-color-map <state=#RRGGBB> Override one color mapping. Repeatable
+  --asc-color-map <state=#RRGGBB> Override one state color. Repeatable
   --asc-keep-alt-screen           Compatibility no-op; alternate screen is preserved by default
   --asc-debug-log <path>          Write wrapper debug logs to a file
   --asc-help                      Show this help

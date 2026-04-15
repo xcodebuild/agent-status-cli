@@ -1,9 +1,9 @@
 # agent-status-cli
 
-`agent-status-cli` 把 Claude Code 和 Codex 的当前状态同步到 iTerm2 的标签页标题和颜色上。
+`agent-status-cli` 把 Claude Code 和 Codex 的当前状态同步到终端标签页标题和颜色上。
 
 
-`agent-status-cli` syncs Claude Code and Codex status to iTerm2 tab titles and colors. 
+`agent-status-cli` syncs Claude Code and Codex status to terminal tab titles and colors. 
 
 
 ---
@@ -68,7 +68,10 @@ agent-status-cli --asc-tool codex -- --help
 
 - Status is inferred from the wrapped CLI screen output.
 - Tab titles are updated through OSC title sequences.
-- Tab colors are updated only when running inside iTerm2.
+- Tab colors are updated automatically in iTerm2 and kitty.
+- iTerm2 uses OSC 6 tab color sequences and applies the active-tab color.
+- kitty uses `kitten @ set-tab-color --self`; when `KITTY_LISTEN_ON` is available it uses `--to` automatically. The active tab uses the state color and the inactive tab uses an automatically dimmed variant of that same color.
+- If another terminal supports iTerm2-compatible OSC 6 tab colors, use `--asc-color-mode on` to force emission manually.
 - `--asc-keep-alt-screen` is kept as a compatibility no-op; the wrapper currently preserves the wrapped CLI screen behavior as-is.
 
 Default state mappings:

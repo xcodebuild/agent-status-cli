@@ -1,9 +1,9 @@
-use std::io::{self, Read, Write};
 use std::collections::BTreeMap;
+use std::io::{self, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow};
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
@@ -15,14 +15,22 @@ use signal_hook::flag;
 use crate::args::{Args, Status};
 use crate::osc::OscFilter;
 use crate::state::StateDetector;
-use crate::terminal::{DebugLog, RawModeGuard, RgbColor, TerminalUi, TitleContext, terminal_size};
+use crate::terminal::{
+    DebugLog, RawModeGuard, RgbColor, TerminalUi, TitleContext, is_iterm2, terminal_size,
+};
 use crate::tool::Tool;
 
 const STATUS_CHANGE_BUFFER: Duration = Duration::from_millis(500);
+const DEFAULT_SCREEN_SCAN_INTERVAL: Duration = Duration::from_millis(125);
+const DEFAULT_TITLE_RENDER_DEBOUNCE: Duration = Duration::from_millis(100);
+const DEFAULT_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(8);
+const ITERM2_SCREEN_SCAN_INTERVAL: Duration = Duration::from_millis(250);
+const ITERM2_TITLE_RENDER_DEBOUNCE: Duration = Duration::from_millis(250);
+const ITERM2_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(32);
+const OUTPUT_FLUSH_BYTES_THRESHOLD: usize = 4096;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct PendingStatusChange {
-    generation: u64,
     status: Status,
 }
 
@@ -30,7 +38,6 @@ struct PendingStatusChange {
 struct BufferedStatus {
     displayed: Status,
     pending: Option<PendingStatusChange>,
-    next_generation: u64,
 }
 
 impl BufferedStatus {
@@ -38,7 +45,6 @@ impl BufferedStatus {
         Self {
             displayed,
             pending: None,
-            next_generation: 0,
         }
     }
 
@@ -56,29 +62,144 @@ impl BufferedStatus {
             return None;
         }
 
-        self.next_generation += 1;
-        let pending = PendingStatusChange {
-            generation: self.next_generation,
-            status: detected,
-        };
+        let pending = PendingStatusChange { status: detected };
         self.pending = Some(pending);
         Some(pending)
     }
 
-    fn commit(&mut self, pending: PendingStatusChange) -> bool {
-        if self.pending != Some(pending) || self.displayed == pending.status {
-            return false;
-        }
-
+    fn commit_pending(&mut self) -> Option<PendingStatusChange> {
+        let pending = self.pending?;
         self.displayed = pending.status;
         self.pending = None;
-        true
+        Some(pending)
     }
 }
+
+#[derive(Debug)]
+struct WorkerSchedule {
+    running: bool,
+    next_scan_at: Option<Instant>,
+    next_status_commit_at: Option<Instant>,
+    next_title_render_at: Option<Instant>,
+}
+
+impl WorkerSchedule {
+    fn new() -> Self {
+        Self {
+            running: true,
+            next_scan_at: None,
+            next_status_commit_at: None,
+            next_title_render_at: None,
+        }
+    }
+
+    fn next_deadline(&self) -> Option<Instant> {
+        let mut next = self.next_scan_at;
+        next = earliest_deadline(next, self.next_status_commit_at);
+        earliest_deadline(next, self.next_title_render_at)
+    }
+
+    fn schedule_screen_scan(&mut self, now: Instant, interval: Duration) {
+        if self.next_scan_at.is_none() {
+            self.next_scan_at = Some(now + interval);
+        }
+    }
+
+    fn schedule_status_commit(&mut self, now: Instant) {
+        self.next_status_commit_at = Some(now + STATUS_CHANGE_BUFFER);
+    }
+
+    fn schedule_title_render(&mut self, now: Instant, interval: Duration) {
+        if self.next_title_render_at.is_none() {
+            self.next_title_render_at = Some(now + interval);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WorkerActions {
+    scan_screen: bool,
+    render_status: bool,
+    render_title: bool,
+}
+
+type WorkerSignal = Arc<(Mutex<WorkerSchedule>, Condvar)>;
+type WorkerSync = (Mutex<WorkerSchedule>, Condvar);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct PerformanceProfile {
+    screen_scan_interval: Duration,
+    title_render_debounce: Duration,
+    output_flush_interval: Duration,
+    output_flush_bytes_threshold: usize,
+}
+
+impl PerformanceProfile {
+    fn for_terminal(is_iterm2: bool) -> Self {
+        if is_iterm2 {
+            Self {
+                screen_scan_interval: ITERM2_SCREEN_SCAN_INTERVAL,
+                title_render_debounce: ITERM2_TITLE_RENDER_DEBOUNCE,
+                output_flush_interval: ITERM2_OUTPUT_FLUSH_INTERVAL,
+                output_flush_bytes_threshold: OUTPUT_FLUSH_BYTES_THRESHOLD,
+            }
+        } else {
+            Self {
+                screen_scan_interval: DEFAULT_SCREEN_SCAN_INTERVAL,
+                title_render_debounce: DEFAULT_TITLE_RENDER_DEBOUNCE,
+                output_flush_interval: DEFAULT_OUTPUT_FLUSH_INTERVAL,
+                output_flush_bytes_threshold: OUTPUT_FLUSH_BYTES_THRESHOLD,
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct OutputBuffer {
+    running: bool,
+    pending: Vec<u8>,
+    next_flush_at: Option<Instant>,
+}
+
+impl OutputBuffer {
+    fn new() -> Self {
+        Self {
+            running: true,
+            pending: Vec::new(),
+            next_flush_at: None,
+        }
+    }
+
+    fn enqueue(&mut self, bytes: &[u8], profile: PerformanceProfile, now: Instant) {
+        if bytes.is_empty() {
+            return;
+        }
+
+        self.pending.extend_from_slice(bytes);
+        if self.pending.len() >= profile.output_flush_bytes_threshold {
+            self.next_flush_at = Some(now);
+        } else if self.next_flush_at.is_none() {
+            self.next_flush_at = Some(now + profile.output_flush_interval);
+        }
+    }
+
+    fn take_pending(&mut self) -> Option<Vec<u8>> {
+        if self.pending.is_empty() {
+            return None;
+        }
+
+        self.next_flush_at = None;
+        Some(std::mem::take(&mut self.pending))
+    }
+}
+
+type OutputSignal = Arc<(Mutex<OutputBuffer>, Condvar)>;
+type OutputSync = (Mutex<OutputBuffer>, Condvar);
 
 pub fn run(args: Args) -> Result<i32> {
     let debug = DebugLog::new(args.debug_log.as_deref())?;
     let _raw_mode = RawModeGuard::new()?;
+    let profile = PerformanceProfile::for_terminal(is_iterm2());
 
     let (cols, rows) = terminal_size()?;
     let pty_system = native_pty_system();
@@ -133,6 +254,16 @@ pub fn run(args: Args) -> Result<i32> {
     let update_lock = Arc::new(Mutex::new(()));
     let title_map = Arc::new(args.title_map.clone());
     let color_map = Arc::new(args.color_map.clone());
+    let worker_signal: WorkerSignal = Arc::new((Mutex::new(WorkerSchedule::new()), Condvar::new()));
+    let output_signal: OutputSignal = Arc::new((Mutex::new(OutputBuffer::new()), Condvar::new()));
+
+    debug.write_line(&format!(
+        "performance_profile screen_scan_ms={} title_debounce_ms={} output_flush_ms={} output_flush_threshold={}",
+        profile.screen_scan_interval.as_millis(),
+        profile.title_render_debounce.as_millis(),
+        profile.output_flush_interval.as_millis(),
+        profile.output_flush_bytes_threshold
+    ));
 
     render_ui(
         &ui,
@@ -144,8 +275,7 @@ pub fn run(args: Args) -> Result<i32> {
         tool_title.lock().unwrap().clone(),
     )?;
 
-    let stdout_thread = {
-        let stdout = Arc::clone(&stdout);
+    let state_thread = {
         let parser = Arc::clone(&parser);
         let detector = Arc::clone(&detector);
         let tool_title = Arc::clone(&tool_title);
@@ -155,9 +285,98 @@ pub fn run(args: Args) -> Result<i32> {
         let update_lock = Arc::clone(&update_lock);
         let title_map = Arc::clone(&title_map);
         let color_map = Arc::clone(&color_map);
+        let worker_signal = Arc::clone(&worker_signal);
         let cwd = cwd.clone();
         let debug = debug.clone();
         let tool = args.tool;
+
+        thread::spawn(move || -> Result<()> {
+            loop {
+                let actions = wait_for_worker_actions(worker_signal.as_ref());
+                if !actions.scan_screen && !actions.render_status && !actions.render_title {
+                    break;
+                }
+
+                if actions.scan_screen {
+                    let screen_text = {
+                        let parser = parser.lock().unwrap();
+                        parser.screen().contents()
+                    };
+                    let title_seen = saw_tool_title.load(Ordering::Relaxed);
+                    let next_state = detector.lock().unwrap().detect(&screen_text, title_seen);
+                    let pending = buffered_status.lock().unwrap().observe(next_state);
+
+                    if let Some(pending) = pending {
+                        debug.write_line(&format!(
+                            "buffering_state={} delay_ms={}",
+                            pending.status.as_str(),
+                            STATUS_CHANGE_BUFFER.as_millis()
+                        ));
+                        schedule_status_commit(worker_signal.as_ref());
+                    }
+                }
+
+                if actions.render_status {
+                    let Some(pending) = buffered_status.lock().unwrap().commit_pending() else {
+                        continue;
+                    };
+                    let _update_guard = update_lock.lock().unwrap();
+                    let current_title = tool_title.lock().unwrap().clone();
+                    debug.write_line(&format!(
+                        "state={} tool_title={} buffered_ms={}",
+                        pending.status.as_str(),
+                        current_title,
+                        STATUS_CHANGE_BUFFER.as_millis()
+                    ));
+                    if let Err(err) = render_ui(
+                        &ui,
+                        title_map.as_ref(),
+                        color_map.as_ref(),
+                        &cwd,
+                        tool,
+                        pending.status,
+                        current_title,
+                    ) {
+                        debug.write_line(&format!("buffered state update failed: {err}"));
+                    }
+                }
+
+                if actions.render_title && !actions.render_status {
+                    let _update_guard = update_lock.lock().unwrap();
+                    let displayed_state = buffered_status.lock().unwrap().displayed();
+                    let current_title = tool_title.lock().unwrap().clone();
+                    if let Err(err) = render_ui(
+                        &ui,
+                        title_map.as_ref(),
+                        color_map.as_ref(),
+                        &cwd,
+                        tool,
+                        displayed_state,
+                        current_title,
+                    ) {
+                        debug.write_line(&format!("debounced title update failed: {err}"));
+                    }
+                }
+            }
+
+            Ok(())
+        })
+    };
+
+    let output_thread = {
+        let stdout = Arc::clone(&stdout);
+        let output_signal = Arc::clone(&output_signal);
+
+        thread::spawn(move || run_output_worker(stdout, output_signal.as_ref()))
+    };
+
+    let stdout_thread = {
+        let parser = Arc::clone(&parser);
+        let tool_title = Arc::clone(&tool_title);
+        let saw_tool_title = Arc::clone(&saw_tool_title);
+        let worker_signal = Arc::clone(&worker_signal);
+        let output_signal = Arc::clone(&output_signal);
+        let profile = profile;
 
         thread::spawn(move || -> Result<()> {
             let mut reader = reader;
@@ -169,90 +388,32 @@ pub fn run(args: Args) -> Result<i32> {
                     Ok(0) => break,
                     Ok(n) => {
                         let filtered = filter.feed(&buffer[..n]);
-                        let title_changed = filtered.title.is_some();
-                        if let Some(title) = filtered.title.clone() {
-                            *tool_title.lock().unwrap() = title;
+                        let mut title_changed = false;
+                        if let Some(title) = filtered.title {
+                            let mut current_title = tool_title.lock().unwrap();
+                            if *current_title != title {
+                                *current_title = title;
+                                title_changed = true;
+                            }
                             saw_tool_title.store(true, Ordering::Relaxed);
                         }
 
-                        {
-                            let mut stdout = stdout.lock().unwrap();
-                            stdout.write_all(&filtered.passthrough)?;
-                            stdout.flush()?;
-                        }
+                        queue_output(output_signal.as_ref(), &filtered.passthrough, profile);
 
                         if !filtered.passthrough.is_empty() {
                             let mut parser = parser.lock().unwrap();
                             parser.process(&filtered.passthrough);
-                        }
-
-                        let screen_text = {
-                            let parser = parser.lock().unwrap();
-                            parser.screen().contents()
-                        };
-                        let title_seen = saw_tool_title.load(Ordering::Relaxed);
-                        let next_state = detector.lock().unwrap().detect(&screen_text, title_seen);
-
-                        let pending = buffered_status.lock().unwrap().observe(next_state);
-
-                        if let Some(pending) = pending {
-                            debug.write_line(&format!(
-                                "buffering_state={} delay_ms={}",
-                                pending.status.as_str(),
-                                STATUS_CHANGE_BUFFER.as_millis()
-                            ));
-                            let buffered_status = Arc::clone(&buffered_status);
-                            let update_lock = Arc::clone(&update_lock);
-                            let tool_title = Arc::clone(&tool_title);
-                            let ui = Arc::clone(&ui);
-                            let title_map = Arc::clone(&title_map);
-                            let color_map = Arc::clone(&color_map);
-                            let cwd = cwd.clone();
-                            let debug = debug.clone();
-
-                            thread::spawn(move || {
-                                thread::sleep(STATUS_CHANGE_BUFFER);
-
-                                let _update_guard = update_lock.lock().unwrap();
-                                let committed = buffered_status.lock().unwrap().commit(pending);
-                                if !committed {
-                                    return;
-                                }
-
-                                let current_title = tool_title.lock().unwrap().clone();
-                                debug.write_line(&format!(
-                                    "state={} tool_title={} buffered_ms={}",
-                                    pending.status.as_str(),
-                                    current_title,
-                                    STATUS_CHANGE_BUFFER.as_millis()
-                                ));
-                                if let Err(err) = render_ui(
-                                    &ui,
-                                    title_map.as_ref(),
-                                    color_map.as_ref(),
-                                    &cwd,
-                                    tool,
-                                    pending.status,
-                                    current_title,
-                                ) {
-                                    debug.write_line(&format!("buffered state update failed: {err}"));
-                                }
-                            });
+                            schedule_screen_scan(
+                                worker_signal.as_ref(),
+                                profile.screen_scan_interval,
+                            );
                         }
 
                         if title_changed {
-                            let _update_guard = update_lock.lock().unwrap();
-                            let displayed_state = buffered_status.lock().unwrap().displayed();
-                            let current_title = tool_title.lock().unwrap().clone();
-                            render_ui(
-                                &ui,
-                                title_map.as_ref(),
-                                color_map.as_ref(),
-                                &cwd,
-                                tool,
-                                displayed_state,
-                                current_title,
-                            )?;
+                            schedule_title_render(
+                                worker_signal.as_ref(),
+                                profile.title_render_debounce,
+                            );
                         }
                     }
                     Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
@@ -288,6 +449,14 @@ pub fn run(args: Args) -> Result<i32> {
     let _ = stdout_thread
         .join()
         .map_err(|_| anyhow!("stdout thread panicked"))??;
+    stop_output(output_signal.as_ref());
+    let _ = output_thread
+        .join()
+        .map_err(|_| anyhow!("output thread panicked"))??;
+    stop_worker(worker_signal.as_ref());
+    let _ = state_thread
+        .join()
+        .map_err(|_| anyhow!("state thread panicked"))??;
     let _stdin_thread = stdin_thread;
     resize_thread.store(false, Ordering::Relaxed);
     let _ = ui.restore();
@@ -407,6 +576,144 @@ fn render_ui(
     )
 }
 
+fn wait_for_worker_actions(worker_signal: &WorkerSync) -> WorkerActions {
+    let (lock, condvar) = worker_signal;
+    let mut schedule = lock.lock().unwrap();
+
+    loop {
+        let now = Instant::now();
+        let actions = WorkerActions {
+            scan_screen: schedule.next_scan_at.is_some_and(|deadline| deadline <= now),
+            render_status: schedule
+                .next_status_commit_at
+                .is_some_and(|deadline| deadline <= now),
+            render_title: schedule
+                .next_title_render_at
+                .is_some_and(|deadline| deadline <= now),
+        };
+
+        if actions.scan_screen || actions.render_status || actions.render_title {
+            if actions.scan_screen {
+                schedule.next_scan_at = None;
+            }
+            if actions.render_status {
+                schedule.next_status_commit_at = None;
+            }
+            if actions.render_title {
+                schedule.next_title_render_at = None;
+            }
+            return actions;
+        }
+
+        if !schedule.running {
+            return WorkerActions {
+                scan_screen: false,
+                render_status: false,
+                render_title: false,
+            };
+        }
+
+        if let Some(deadline) = schedule.next_deadline() {
+            let timeout = deadline.saturating_duration_since(now);
+            let (next_schedule, _) = condvar.wait_timeout(schedule, timeout).unwrap();
+            schedule = next_schedule;
+        } else {
+            schedule = condvar.wait(schedule).unwrap();
+        }
+    }
+}
+
+fn schedule_screen_scan(worker_signal: &WorkerSync, interval: Duration) {
+    let (lock, condvar) = worker_signal;
+    let mut schedule = lock.lock().unwrap();
+    schedule.schedule_screen_scan(Instant::now(), interval);
+    condvar.notify_one();
+}
+
+fn schedule_status_commit(worker_signal: &WorkerSync) {
+    let (lock, condvar) = worker_signal;
+    let mut schedule = lock.lock().unwrap();
+    schedule.schedule_status_commit(Instant::now());
+    condvar.notify_one();
+}
+
+fn schedule_title_render(worker_signal: &WorkerSync, interval: Duration) {
+    let (lock, condvar) = worker_signal;
+    let mut schedule = lock.lock().unwrap();
+    schedule.schedule_title_render(Instant::now(), interval);
+    condvar.notify_one();
+}
+
+fn stop_worker(worker_signal: &WorkerSync) {
+    let (lock, condvar) = worker_signal;
+    let mut schedule = lock.lock().unwrap();
+    schedule.running = false;
+    condvar.notify_one();
+}
+
+fn run_output_worker(stdout: Arc<Mutex<io::Stdout>>, output_signal: &OutputSync) -> Result<()> {
+    while let Some(chunk) = wait_for_output_chunk(output_signal) {
+        let mut stdout = stdout.lock().unwrap();
+        stdout.write_all(&chunk)?;
+        stdout.flush()?;
+    }
+
+    Ok(())
+}
+
+fn wait_for_output_chunk(output_signal: &OutputSync) -> Option<Vec<u8>> {
+    let (lock, condvar) = output_signal;
+    let mut output = lock.lock().unwrap();
+
+    loop {
+        let now = Instant::now();
+        let flush_due = output.next_flush_at.is_some_and(|deadline| deadline <= now);
+
+        if (!output.running || flush_due) && !output.pending.is_empty() {
+            return output.take_pending();
+        }
+
+        if !output.running {
+            return None;
+        }
+
+        if let Some(deadline) = output.next_flush_at {
+            let timeout = deadline.saturating_duration_since(now);
+            let (next_output, _) = condvar.wait_timeout(output, timeout).unwrap();
+            output = next_output;
+        } else {
+            output = condvar.wait(output).unwrap();
+        }
+    }
+}
+
+fn queue_output(output_signal: &OutputSync, bytes: &[u8], profile: PerformanceProfile) {
+    if bytes.is_empty() {
+        return;
+    }
+
+    let (lock, condvar) = output_signal;
+    let mut output = lock.lock().unwrap();
+    output.enqueue(bytes, profile, Instant::now());
+    condvar.notify_one();
+}
+
+fn stop_output(output_signal: &OutputSync) {
+    let (lock, condvar) = output_signal;
+    let mut output = lock.lock().unwrap();
+    output.running = false;
+    condvar.notify_one();
+}
+
+fn earliest_deadline(current: Option<Instant>, next: Option<Instant>) -> Option<Instant> {
+    match (current, next) {
+        (Some(current), Some(next)) => Some(current.min(next)),
+        (Some(current), None) => Some(current),
+        (None, Some(next)) => Some(next),
+        (None, None) => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -424,22 +731,21 @@ mod tests {
     #[test]
     fn drops_pending_change_when_state_bounces_back() {
         let mut buffered = BufferedStatus::new(Status::Ready);
-        let pending = buffered.observe(Status::Busy).unwrap();
+        let _pending = buffered.observe(Status::Busy).unwrap();
 
         assert_eq!(buffered.displayed(), Status::Ready);
         assert_eq!(buffered.observe(Status::Ready), None);
-        assert!(!buffered.commit(pending));
+        assert_eq!(buffered.commit_pending(), None);
         assert_eq!(buffered.displayed(), Status::Ready);
     }
 
     #[test]
-    fn ignores_stale_timer_after_newer_transition_is_buffered() {
+    fn commits_latest_pending_state() {
         let mut buffered = BufferedStatus::new(Status::Ready);
-        let first = buffered.observe(Status::Busy).unwrap();
+        let _first = buffered.observe(Status::Busy).unwrap();
         let second = buffered.observe(Status::Error).unwrap();
 
-        assert!(!buffered.commit(first));
-        assert!(buffered.commit(second));
+        assert_eq!(buffered.commit_pending(), Some(second));
         assert_eq!(buffered.displayed(), Status::Error);
     }
 
@@ -484,5 +790,50 @@ mod tests {
             .map(|arg| arg.to_string_lossy().into_owned())
             .collect();
         assert_eq!(argv, vec!["codex", "--no-alt-screen"]);
+    }
+
+    #[test]
+    fn uses_more_conservative_profile_for_iterm2() {
+        let profile = PerformanceProfile::for_terminal(true);
+
+        assert_eq!(profile.screen_scan_interval, ITERM2_SCREEN_SCAN_INTERVAL);
+        assert_eq!(profile.title_render_debounce, ITERM2_TITLE_RENDER_DEBOUNCE);
+        assert_eq!(profile.output_flush_interval, ITERM2_OUTPUT_FLUSH_INTERVAL);
+        assert_eq!(
+            profile.output_flush_bytes_threshold,
+            OUTPUT_FLUSH_BYTES_THRESHOLD
+        );
+    }
+
+    #[test]
+    fn output_buffer_batches_small_writes_until_deadline() {
+        let mut output = OutputBuffer::new();
+        let profile = PerformanceProfile::for_terminal(false);
+        let now = Instant::now();
+
+        output.enqueue(b"abc", profile, now);
+
+        assert_eq!(output.pending, b"abc");
+        assert_eq!(
+            output.next_flush_at,
+            Some(now + profile.output_flush_interval)
+        );
+    }
+
+    #[test]
+    fn output_buffer_flushes_large_batches_immediately() {
+        let mut output = OutputBuffer::new();
+        let profile = PerformanceProfile {
+            output_flush_bytes_threshold: 4,
+            ..PerformanceProfile::for_terminal(false)
+        };
+        let now = Instant::now();
+
+        output.enqueue(b"abcd", profile, now);
+
+        assert_eq!(output.pending, b"abcd");
+        assert_eq!(output.next_flush_at, Some(now));
+        assert_eq!(output.take_pending(), Some(b"abcd".to_vec()));
+        assert_eq!(output.next_flush_at, None);
     }
 }
