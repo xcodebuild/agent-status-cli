@@ -12,6 +12,13 @@ Install the latest release:
 curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/xcodebuild/agent-status-cli/master/install.sh | sh
 ```
 
+Quick examples:
+
+```bash
+asc-codex
+asc-claude
+```
+
 ## Commands
 
 The project ships three executables:

@@ -12,6 +12,13 @@
 curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/xcodebuild/agent-status-cli/master/install.sh | sh
 ```
 
+简单示例：
+
+```bash
+asc-codex
+asc-claude
+```
+
 ## 可执行文件
 
 项目会安装三个命令：
