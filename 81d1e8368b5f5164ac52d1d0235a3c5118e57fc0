@@ -1,0 +1,23 @@
+install.sh
+  7db37c33874bf9f1 5,21-58,187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "81d1e8368b5f5164ac52d1d0235a3c5118e57fc0",
+  "prompts": {
+    "7db37c33874bf9f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8eed-fa2d-75f2-802b-b82bed86c173",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 40,
+      "total_deletions": 1,
+      "accepted_lines": 40,
+      "overriden_lines": 0
+    }
+  }
+}
