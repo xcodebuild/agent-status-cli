@@ -1,0 +1,23 @@
+README.md
+  1e5b2789a78f4867 3,6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "4d172c6cac720ae260341c189429296b691dd232",
+  "prompts": {
+    "1e5b2789a78f4867": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8f1c-4745-7fb1-9073-6a19334c7a26",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 5,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
