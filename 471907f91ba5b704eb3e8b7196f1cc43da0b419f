@@ -1,0 +1,25 @@
+README.md
+  c84a1ed41f8572c0 15-21
+README_CN.md
+  c84a1ed41f8572c0 15-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "471907f91ba5b704eb3e8b7196f1cc43da0b419f",
+  "prompts": {
+    "c84a1ed41f8572c0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8efa-057c-70d3-b690-9e2142e0a1d5",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 0,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    }
+  }
+}
