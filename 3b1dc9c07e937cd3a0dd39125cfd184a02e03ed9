@@ -1,0 +1,27 @@
+src/state.rs
+  58bd092a8aa4347d 6,11-14,18-19,21,23,25,67-75,77,79-80
+src/wrapper.rs
+  58bd092a8aa4347d 275,338,355,564,569-571
+src/terminal.rs
+  58bd092a8aa4347d 146,148-150,152,260,374,382-407,410-419,422-438,621-651
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "3b1dc9c07e937cd3a0dd39125cfd184a02e03ed9",
+  "prompts": {
+    "58bd092a8aa4347d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d91ae-5256-70f3-9314-7ba4215839e2",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 120,
+      "total_deletions": 50,
+      "accepted_lines": 120,
+      "overriden_lines": 0
+    }
+  }
+}
