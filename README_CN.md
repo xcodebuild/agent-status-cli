@@ -25,7 +25,7 @@ asc-claude
 
 下图是在 iTerm2 中将 `Tab bar location` 设为 `Left` 时的效果。
 
-![agent-status-cli preview](https://img.cdn1.vip/i/69df0d758a12b_1776225653.webp)
+![agent-status-cli preview](https://img.cdn1.vip/i/69df1fd6627b6_1776230358.webp)
 
 下图是在 iTerm2 中将 `Tab bar location` 设为 `Top` 时的效果。
 

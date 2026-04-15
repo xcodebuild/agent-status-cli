@@ -29,7 +29,7 @@ Preview:
 
 Shown in iTerm2 with `Tab bar location` set to `Left`.
 
-![agent-status-cli preview](https://img.cdn1.vip/i/69df0d758a12b_1776225653.webp)
+![agent-status-cli preview](https://img.cdn1.vip/i/69df1fd6627b6_1776230358.webp)
 
 Shown in iTerm2 with `Tab bar location` set to `Top`.
 
