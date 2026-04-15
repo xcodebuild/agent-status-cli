@@ -1,0 +1,107 @@
+install-dev.sh
+  074ebb08e4ccdb27 1-183
+src/wrapper.rs
+  a9c88295a2dac3f2 2,278,293,317-318,336,342-343,360-364,391-397,457-459,594,607,614-615,622
+  d866695be1cafe5e 18,20,24-30,101-116,128-153,157-194,196-198,202,258-266,366,368-373,378-379,401,406-409,413-416,452-455,626,629-630,636,640,643-644,651-704,794-837
+  f09c41d964cb7a5f 4,6,65,70-71,74-99,119-127,195,257,288,294-316,319-335,337-341,344-359,377,456,579-593,595-606,608-613,616-621,623-625,627-628,631-635,637-639,641-642,645-650,705-714,734,738,743,745,748
+  4914498c96772116 19
+  344e16b374105337 375
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "431b2ba0fec7da18a3ac2b1181dbebcf75ed840b",
+  "prompts": {
+    "074ebb08e4ccdb27": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d9123-5ea9-7861-9617-62463d6e45fd",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 183,
+      "total_deletions": 0,
+      "accepted_lines": 183,
+      "overriden_lines": 0
+    },
+    "344e16b374105337": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8f8f-3baf-7863-a3ea-a5893b2697d3",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "4914498c96772116": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d914a-80c2-7442-a2cb-5fc0b5ef0d44",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "692a859c6dbe6865": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8f9f-e562-7b71-ba71-6370e177836d",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "a9c88295a2dac3f2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d90ff-baf0-7cb3-bf13-88c0766b6149",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 118,
+      "total_deletions": 60,
+      "accepted_lines": 44,
+      "overriden_lines": 0
+    },
+    "d866695be1cafe5e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d9111-5a9d-7072-bd2c-57e3318a0586",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 234,
+      "total_deletions": 22,
+      "accepted_lines": 233,
+      "overriden_lines": 0
+    },
+    "f09c41d964cb7a5f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d910a-1fcc-7d90-8bae-5f6559002124",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 195,
+      "total_deletions": 114,
+      "accepted_lines": 181,
+      "overriden_lines": 0
+    }
+  }
+}
