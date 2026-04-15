@@ -1,0 +1,36 @@
+install.sh
+  91546ddce64371ca 75,94-113,143,149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "f172019a3eab149307f29e160ca0ee62eaba0fc6",
+  "prompts": {
+    "0b01abde317649cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8e99-ea5a-76e1-973c-8f48d1a138c0",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    },
+    "91546ddce64371ca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8e97-f904-72d2-89fc-3fba4d025a02",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 25,
+      "overriden_lines": 0
+    }
+  }
+}
