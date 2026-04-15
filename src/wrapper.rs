@@ -454,4 +454,35 @@ mod tests {
             std::env::current_dir().ok().as_deref().map(|cwd| cwd.as_os_str())
         );
     }
+
+    #[test]
+    fn build_command_keeps_codex_default_screen_mode() {
+        let args = Args::default();
+
+        let command = build_command(&args);
+
+        let argv: Vec<_> = command
+            .get_argv()
+            .iter()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(argv, vec!["codex"]);
+    }
+
+    #[test]
+    fn build_command_preserves_explicit_no_alt_screen_passthrough() {
+        let args = Args {
+            passthrough_args: vec!["--no-alt-screen".into()],
+            ..Args::default()
+        };
+
+        let command = build_command(&args);
+
+        let argv: Vec<_> = command
+            .get_argv()
+            .iter()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(argv, vec!["codex", "--no-alt-screen"]);
+    }
 }

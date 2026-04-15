@@ -2,6 +2,7 @@
 name = "agent-status-cli"
 version = "0.1.0"
 edition = "2024"
+default-run = "agent-status-cli"
 
 [dependencies]
 anyhow = "1.0"

@@ -24,14 +24,17 @@ impl Tool {
 
     pub fn injected_args(self) -> &'static [&'static str] {
         match self {
-            Tool::Codex => &["--no-alt-screen"],
+            // Preserve Codex's default full-screen renderer. Forcing inline mode
+            // causes visible redraw artifacts during prompt and MCP status updates.
+            Tool::Codex => &[],
             Tool::Claude => &[],
         }
     }
 
     pub fn should_inject_alt_screen_flag(self, args: &[OsString]) -> bool {
         match self {
-            Tool::Codex => !args.iter().any(|arg| arg == "--no-alt-screen"),
+            Tool::Codex => !args.iter().any(|arg| arg == "--no-alt-screen")
+                && !self.injected_args().is_empty(),
             Tool::Claude => false,
         }
     }
