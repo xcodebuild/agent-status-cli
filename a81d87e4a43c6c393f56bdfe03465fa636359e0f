@@ -1,0 +1,36 @@
+src/state.rs
+  0b01abde317649cb 16,18-19,41-55,116-126,128-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "a81d87e4a43c6c393f56bdfe03465fa636359e0f",
+  "prompts": {
+    "0b01abde317649cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8e99-ea5a-76e1-973c-8f48d1a138c0",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 41,
+      "total_deletions": 3,
+      "accepted_lines": 41,
+      "overriden_lines": 0
+    },
+    "91546ddce64371ca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8e97-f904-72d2-89fc-3fba4d025a02",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 30,
+      "total_deletions": 14,
+      "accepted_lines": 25,
+      "overriden_lines": 0
+    }
+  }
+}
