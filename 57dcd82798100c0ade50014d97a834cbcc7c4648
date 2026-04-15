@@ -1,0 +1,38 @@
+README.md
+  01d33387796342a7 22-31
+README_CN.md
+  a516fd7c134e63ff 22-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "57dcd82798100c0ade50014d97a834cbcc7c4648",
+  "prompts": {
+    "01d33387796342a7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8efc-5d6f-7f81-a0c6-abc818981f0a",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 1,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    },
+    "a516fd7c134e63ff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8eff-9dc7-7ae3-8323-51ca3bfd6acf",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 0,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}
