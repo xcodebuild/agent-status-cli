@@ -1,0 +1,53 @@
+src/terminal.rs
+  dd5baa4088387642 122,133-134,139,144-145,156,159,229-231
+README_CN.md
+  da00126fa253bc93 28
+README.md
+  da00126fa253bc93 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "c53288ae965e5468ec051704d276fea351b6b9e9",
+  "prompts": {
+    "88427644c2f76b6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8f4b-693a-7c01-b645-4fe4b76b171f",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 34,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "da00126fa253bc93": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8f4c-e999-7320-9381-0cb84481bec7",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "dd5baa4088387642": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8f89-1e69-7ef2-b9af-09451bcb0ffa",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 41,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  }
+}
