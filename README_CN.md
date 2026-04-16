@@ -27,9 +27,34 @@ asc-claude
 
 ![agent-status-cli preview](https://img.cdn1.vip/i/69df1fd6627b6_1776230358.webp)
 
-下图是在 iTerm2 中将 `Tab bar location` 设为 `Top` 时的效果。
+下图是在 kitty 中的效果。
 
-![agent-status-cli preview top](https://img.cdn1.vip/i/69def996cb76d_1776220566.webp)
+![agent-status-cli preview kitty](https://img.cdn1.vip/i/69e04ac1bb0df_1776306881.webp)
+
+## 推荐的 kitty 配置
+
+`allow_remote_control yes` 是必须的，`agent-status-cli` 需要通过 kitty remote control 更新标签颜色。
+
+把下面这些配置加入 `kitty.conf`：
+
+```conf
+allow_remote_control yes
+tab_bar_min_tabs 1
+font_size 16.0
+font_family JetBrainsMono Nerd Font, Sarasa Mono SC, Noto Sans CJK SC
+adjust_line_height 125%
+
+map cmd+t
+map cmd+enter
+map cmd+n
+
+map cmd+t launch --type=tab --cwd=current
+map cmd+enter launch --type=window --cwd=current
+map cmd+n launch --type=os-window --cwd=current
+
+map cmd+shift+left previous_tab
+map cmd+shift+right next_tab
+```
 
 ## 命令
 
@@ -66,7 +91,7 @@ agent-status-cli --asc-tool codex -- --help
 - 标签页标题通过 OSC title 序列更新。
 - 标签页颜色会在 iTerm2 和 kitty 里自动更新。
 - iTerm2 走 OSC 6 tab color 序列，只应用活跃标签颜色。
-- kitty 走 `kitten @ set-tab-color --self`；如果存在 `KITTY_LISTEN_ON` 会自动补 `--to`。活跃标签使用状态色，不活跃标签自动使用同色系的压暗版本。
+- kitty 走 `kitten @ set-tab-color --self`；必须开启 `allow_remote_control yes`，如果存在 `KITTY_LISTEN_ON` 会自动补 `--to`。活跃标签使用状态色，不活跃标签自动使用同色系的压暗版本。
 - 如果别的终端也兼容 iTerm2 的 OSC 6 tab color，可以用 `--asc-color-mode on` 手动强制发出序列。
 - `--asc-keep-alt-screen` 目前保留为兼容用的空操作；包装器现在不会额外改动底层 CLI 的屏幕行为。
 

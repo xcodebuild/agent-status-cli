@@ -31,9 +31,34 @@ Shown in iTerm2 with `Tab bar location` set to `Left`.
 
 ![agent-status-cli preview](https://img.cdn1.vip/i/69df1fd6627b6_1776230358.webp)
 
-Shown in iTerm2 with `Tab bar location` set to `Top`.
+Shown in kitty.
 
-![agent-status-cli preview top](https://img.cdn1.vip/i/69def996cb76d_1776220566.webp)
+![agent-status-cli preview kitty](https://img.cdn1.vip/i/69e04ac1bb0df_1776306881.webp)
+
+## Recommended kitty config
+
+`allow_remote_control yes` is required. `agent-status-cli` uses kitty remote control to update tab colors.
+
+Add this to `kitty.conf`:
+
+```conf
+allow_remote_control yes
+tab_bar_min_tabs 1
+font_size 16.0
+font_family JetBrainsMono Nerd Font, Sarasa Mono SC, Noto Sans CJK SC
+adjust_line_height 125%
+
+map cmd+t
+map cmd+enter
+map cmd+n
+
+map cmd+t launch --type=tab --cwd=current
+map cmd+enter launch --type=window --cwd=current
+map cmd+n launch --type=os-window --cwd=current
+
+map cmd+shift+left previous_tab
+map cmd+shift+right next_tab
+```
 
 ## Commands
 
@@ -70,7 +95,7 @@ agent-status-cli --asc-tool codex -- --help
 - Tab titles are updated through OSC title sequences.
 - Tab colors are updated automatically in iTerm2 and kitty.
 - iTerm2 uses OSC 6 tab color sequences and applies the active-tab color.
-- kitty uses `kitten @ set-tab-color --self`; when `KITTY_LISTEN_ON` is available it uses `--to` automatically. The active tab uses the state color and the inactive tab uses an automatically dimmed variant of that same color.
+- kitty uses `kitten @ set-tab-color --self`; `allow_remote_control yes` is required, and when `KITTY_LISTEN_ON` is available it uses `--to` automatically. The active tab uses the state color and the inactive tab uses an automatically dimmed variant of that same color.
 - If another terminal supports iTerm2-compatible OSC 6 tab colors, use `--asc-color-mode on` to force emission manually.
 - `--asc-keep-alt-screen` is kept as a compatibility no-op; the wrapper currently preserves the wrapped CLI screen behavior as-is.
 
