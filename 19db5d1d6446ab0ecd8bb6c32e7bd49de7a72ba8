@@ -1,0 +1,25 @@
+README.md
+  717bdbde7131ffa0 34,36-61,98
+README_CN.md
+  717bdbde7131ffa0 30,32-57,94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "19db5d1d6446ab0ecd8bb6c32e7bd49de7a72ba8",
+  "prompts": {
+    "717bdbde7131ffa0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d9424-20c9-7633-9b53-939a0db3f4bf",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 78,
+      "total_deletions": 8,
+      "accepted_lines": 58,
+      "overriden_lines": 0
+    }
+  }
+}
