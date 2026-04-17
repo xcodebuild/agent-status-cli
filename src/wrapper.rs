@@ -27,6 +27,8 @@ const DEFAULT_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(8);
 const ITERM2_SCREEN_SCAN_INTERVAL: Duration = Duration::from_millis(250);
 const ITERM2_TITLE_RENDER_DEBOUNCE: Duration = Duration::from_millis(250);
 const ITERM2_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(32);
+const DEFAULT_SCREEN_PARSE_BYTES_THRESHOLD: usize = 16 * 1024;
+const ITERM2_SCREEN_PARSE_BYTES_THRESHOLD: usize = 64 * 1024;
 const OUTPUT_FLUSH_BYTES_THRESHOLD: usize = 4096;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -78,6 +80,7 @@ impl BufferedStatus {
 #[derive(Debug)]
 struct WorkerSchedule {
     running: bool,
+    pending_screen: Vec<u8>,
     next_scan_at: Option<Instant>,
     next_status_commit_at: Option<Instant>,
     next_title_render_at: Option<Instant>,
@@ -87,6 +90,7 @@ impl WorkerSchedule {
     fn new() -> Self {
         Self {
             running: true,
+            pending_screen: Vec::new(),
             next_scan_at: None,
             next_status_commit_at: None,
             next_title_render_at: None,
@@ -99,9 +103,16 @@ impl WorkerSchedule {
         earliest_deadline(next, self.next_title_render_at)
     }
 
-    fn schedule_screen_scan(&mut self, now: Instant, interval: Duration) {
-        if self.next_scan_at.is_none() {
-            self.next_scan_at = Some(now + interval);
+    fn enqueue_screen_bytes(&mut self, bytes: &[u8], now: Instant, profile: PerformanceProfile) {
+        if bytes.is_empty() {
+            return;
+        }
+
+        self.pending_screen.extend_from_slice(bytes);
+        if self.pending_screen.len() >= profile.screen_parse_bytes_threshold {
+            self.next_scan_at = Some(now);
+        } else if self.next_scan_at.is_none() {
+            self.next_scan_at = Some(now + profile.screen_scan_interval);
         }
     }
 
@@ -116,9 +127,9 @@ impl WorkerSchedule {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct WorkerActions {
-    scan_screen: bool,
+    screen_bytes: Option<Vec<u8>>,
     render_status: bool,
     render_title: bool,
 }
@@ -129,6 +140,7 @@ type WorkerSync = (Mutex<WorkerSchedule>, Condvar);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct PerformanceProfile {
     screen_scan_interval: Duration,
+    screen_parse_bytes_threshold: usize,
     title_render_debounce: Duration,
     output_flush_interval: Duration,
     output_flush_bytes_threshold: usize,
@@ -139,6 +151,7 @@ impl PerformanceProfile {
         if is_iterm2 {
             Self {
                 screen_scan_interval: ITERM2_SCREEN_SCAN_INTERVAL,
+                screen_parse_bytes_threshold: ITERM2_SCREEN_PARSE_BYTES_THRESHOLD,
                 title_render_debounce: ITERM2_TITLE_RENDER_DEBOUNCE,
                 output_flush_interval: ITERM2_OUTPUT_FLUSH_INTERVAL,
                 output_flush_bytes_threshold: OUTPUT_FLUSH_BYTES_THRESHOLD,
@@ -146,6 +159,7 @@ impl PerformanceProfile {
         } else {
             Self {
                 screen_scan_interval: DEFAULT_SCREEN_SCAN_INTERVAL,
+                screen_parse_bytes_threshold: DEFAULT_SCREEN_PARSE_BYTES_THRESHOLD,
                 title_render_debounce: DEFAULT_TITLE_RENDER_DEBOUNCE,
                 output_flush_interval: DEFAULT_OUTPUT_FLUSH_INTERVAL,
                 output_flush_bytes_threshold: OUTPUT_FLUSH_BYTES_THRESHOLD,
@@ -258,8 +272,9 @@ pub fn run(args: Args) -> Result<i32> {
     let output_signal: OutputSignal = Arc::new((Mutex::new(OutputBuffer::new()), Condvar::new()));
 
     debug.write_line(&format!(
-        "performance_profile screen_scan_ms={} title_debounce_ms={} output_flush_ms={} output_flush_threshold={}",
+        "performance_profile screen_scan_ms={} screen_parse_threshold={} title_debounce_ms={} output_flush_ms={} output_flush_threshold={}",
         profile.screen_scan_interval.as_millis(),
+        profile.screen_parse_bytes_threshold,
         profile.title_render_debounce.as_millis(),
         profile.output_flush_interval.as_millis(),
         profile.output_flush_bytes_threshold
@@ -293,13 +308,14 @@ pub fn run(args: Args) -> Result<i32> {
         thread::spawn(move || -> Result<()> {
             loop {
                 let actions = wait_for_worker_actions(worker_signal.as_ref());
-                if !actions.scan_screen && !actions.render_status && !actions.render_title {
+                if actions.screen_bytes.is_none() && !actions.render_status && !actions.render_title {
                     break;
                 }
 
-                if actions.scan_screen {
+                if let Some(screen_bytes) = actions.screen_bytes {
                     let screen_text = {
-                        let parser = parser.lock().unwrap();
+                        let mut parser = parser.lock().unwrap();
+                        parser.process(&screen_bytes);
                         parser.screen().contents()
                     };
                     let title_seen = saw_tool_title.load(Ordering::Relaxed);
@@ -371,7 +387,6 @@ pub fn run(args: Args) -> Result<i32> {
     };
 
     let stdout_thread = {
-        let parser = Arc::clone(&parser);
         let tool_title = Arc::clone(&tool_title);
         let saw_tool_title = Arc::clone(&saw_tool_title);
         let worker_signal = Arc::clone(&worker_signal);
@@ -401,11 +416,10 @@ pub fn run(args: Args) -> Result<i32> {
                         queue_output(output_signal.as_ref(), &filtered.passthrough, profile);
 
                         if !filtered.passthrough.is_empty() {
-                            let mut parser = parser.lock().unwrap();
-                            parser.process(&filtered.passthrough);
                             schedule_screen_scan(
                                 worker_signal.as_ref(),
-                                profile.screen_scan_interval,
+                                &filtered.passthrough,
+                                profile,
                             );
                         }
 
@@ -582,32 +596,37 @@ fn wait_for_worker_actions(worker_signal: &WorkerSync) -> WorkerActions {
 
     loop {
         let now = Instant::now();
-        let actions = WorkerActions {
-            scan_screen: schedule.next_scan_at.is_some_and(|deadline| deadline <= now),
-            render_status: schedule
+        let scan_screen = schedule.next_scan_at.is_some_and(|deadline| deadline <= now);
+        let render_status = schedule
                 .next_status_commit_at
-                .is_some_and(|deadline| deadline <= now),
-            render_title: schedule
+                .is_some_and(|deadline| deadline <= now);
+        let render_title = schedule
                 .next_title_render_at
-                .is_some_and(|deadline| deadline <= now),
-        };
+                .is_some_and(|deadline| deadline <= now);
 
-        if actions.scan_screen || actions.render_status || actions.render_title {
-            if actions.scan_screen {
+        if scan_screen || render_status || render_title {
+            let screen_bytes = if scan_screen {
                 schedule.next_scan_at = None;
-            }
-            if actions.render_status {
+                Some(std::mem::take(&mut schedule.pending_screen))
+            } else {
+                None
+            };
+            if render_status {
                 schedule.next_status_commit_at = None;
             }
-            if actions.render_title {
+            if render_title {
                 schedule.next_title_render_at = None;
             }
-            return actions;
+            return WorkerActions {
+                screen_bytes,
+                render_status,
+                render_title,
+            };
         }
 
         if !schedule.running {
             return WorkerActions {
-                scan_screen: false,
+                screen_bytes: None,
                 render_status: false,
                 render_title: false,
             };
@@ -623,10 +642,14 @@ fn wait_for_worker_actions(worker_signal: &WorkerSync) -> WorkerActions {
     }
 }
 
-fn schedule_screen_scan(worker_signal: &WorkerSync, interval: Duration) {
+fn schedule_screen_scan(worker_signal: &WorkerSync, bytes: &[u8], profile: PerformanceProfile) {
+    if bytes.is_empty() {
+        return;
+    }
+
     let (lock, condvar) = worker_signal;
     let mut schedule = lock.lock().unwrap();
-    schedule.schedule_screen_scan(Instant::now(), interval);
+    schedule.enqueue_screen_bytes(bytes, Instant::now(), profile);
     condvar.notify_one();
 }
 
@@ -797,12 +820,43 @@ mod tests {
         let profile = PerformanceProfile::for_terminal(true);
 
         assert_eq!(profile.screen_scan_interval, ITERM2_SCREEN_SCAN_INTERVAL);
+        assert_eq!(
+            profile.screen_parse_bytes_threshold,
+            ITERM2_SCREEN_PARSE_BYTES_THRESHOLD
+        );
         assert_eq!(profile.title_render_debounce, ITERM2_TITLE_RENDER_DEBOUNCE);
         assert_eq!(profile.output_flush_interval, ITERM2_OUTPUT_FLUSH_INTERVAL);
         assert_eq!(
             profile.output_flush_bytes_threshold,
             OUTPUT_FLUSH_BYTES_THRESHOLD
         );
+    }
+
+    #[test]
+    fn worker_schedule_batches_screen_updates_until_deadline() {
+        let mut schedule = WorkerSchedule::new();
+        let profile = PerformanceProfile::for_terminal(false);
+        let now = Instant::now();
+
+        schedule.enqueue_screen_bytes(b"abc", now, profile);
+
+        assert_eq!(schedule.pending_screen, b"abc");
+        assert_eq!(schedule.next_scan_at, Some(now + profile.screen_scan_interval));
+    }
+
+    #[test]
+    fn worker_schedule_flushes_large_screen_batches_immediately() {
+        let mut schedule = WorkerSchedule::new();
+        let profile = PerformanceProfile {
+            screen_parse_bytes_threshold: 4,
+            ..PerformanceProfile::for_terminal(false)
+        };
+        let now = Instant::now();
+
+        schedule.enqueue_screen_bytes(b"abcd", now, profile);
+
+        assert_eq!(schedule.pending_screen, b"abcd");
+        assert_eq!(schedule.next_scan_at, Some(now));
     }
 
     #[test]
