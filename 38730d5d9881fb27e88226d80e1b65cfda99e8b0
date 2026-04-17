@@ -1,0 +1,23 @@
+src/wrapper.rs
+  ecc8977b4f70e176 30-31,83,93,106-115,130,132,143,154,162,275,277,311,315,317-318,421-422,599-600,602-603,605,607-608,610-614,617,620-624,629,645-648,652,823-826,835-859
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "38730d5d9881fb27e88226d80e1b65cfda99e8b0",
+  "prompts": {
+    "ecc8977b4f70e176": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d98d5-4c74-72d3-aef3-ed1c1af33ccb",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xcodebuild",
+      "messages": [],
+      "total_additions": 83,
+      "total_deletions": 29,
+      "accepted_lines": 83,
+      "overriden_lines": 0
+    }
+  }
+}
