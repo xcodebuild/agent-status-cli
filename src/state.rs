@@ -2,14 +2,14 @@ use crate::args::Status;
 use crate::tool::Tool;
 
 pub struct StateDetector {
-    _tool: Tool,
+    tool: Tool,
     normalized: String,
 }
 
 impl StateDetector {
     pub fn new(tool: Tool) -> Self {
         Self {
-            _tool: tool,
+            tool,
             normalized: String::new(),
         }
     }
@@ -18,11 +18,11 @@ impl StateDetector {
         normalize_into(&mut self.normalized, screen_text);
         let normalized = self.normalized.as_str();
 
-        if is_ready(normalized) {
+        if is_ready(normalized, self.tool) {
             Status::Ready
         } else if is_error(normalized) {
             Status::Error
-        } else if is_busy(normalized) {
+        } else if is_busy(normalized, self.tool) {
             Status::Busy
         } else if normalized.trim().is_empty() {
             Status::Starting
@@ -32,15 +32,33 @@ impl StateDetector {
     }
 }
 
-fn is_ready(normalized: &str) -> bool {
-    contains_any(
-        normalized,
-        &["enter to send", "tab to queue message", "tab to queue"],
-    )
+fn is_ready(normalized: &str, tool: Tool) -> bool {
+    match tool {
+        Tool::OpenCode => {
+            // OpenCode is ready when the input area is visible and not busy.
+            // We detect ready by the absence of busy indicators on a non-empty screen.
+            // The bottom bar shows shortcuts like "ctrl+t" and "ctrl+p" when idle.
+            !is_opencode_busy(normalized)
+                && contains_any(normalized, &["ctrl+t", "ctrl+p", "ask anything"])
+        }
+        _ => contains_any(
+            normalized,
+            &["enter to send", "tab to queue message", "tab to queue"],
+        ),
+    }
 }
 
-fn is_busy(normalized: &str) -> bool {
-    contains_any(normalized, &["esc to interrupt", "press esc to interrupt"])
+fn is_busy(normalized: &str, tool: Tool) -> bool {
+    match tool {
+        Tool::OpenCode => is_opencode_busy(normalized),
+        _ => contains_any(normalized, &["esc to interrupt", "press esc to interrupt"]),
+    }
+}
+
+/// OpenCode shows "esc interrupt" when the agent is working.
+/// We detect busy when both "esc" and "interrupt" appear on screen.
+fn is_opencode_busy(normalized: &str) -> bool {
+    normalized.contains("esc") && normalized.contains("interrupt")
 }
 
 fn is_error(normalized: &str) -> bool {
@@ -171,6 +189,33 @@ mod tests {
     #[test]
     fn keeps_empty_screen_as_starting() {
         let mut detector = StateDetector::new(Tool::Claude);
+        let state = detector.detect("", false);
+        assert_eq!(state, Status::Starting);
+    }
+
+    #[test]
+    fn detects_opencode_busy_from_esc_and_interrupt() {
+        let mut detector = StateDetector::new(Tool::OpenCode);
+        let state = detector.detect(
+            "Working on task...\n  esc interrupt\n~/code/project:main  1.2.15",
+            true,
+        );
+        assert_eq!(state, Status::Busy);
+    }
+
+    #[test]
+    fn detects_opencode_ready_from_idle_screen() {
+        let mut detector = StateDetector::new(Tool::OpenCode);
+        let state = detector.detect(
+            "Ask anything... \"Fix broken tests\"\nBuild  Claude Opus 4.7\n  ctrl+t variants  tab agents  ctrl+p commands\n~/code/project:main  1.2.15",
+            true,
+        );
+        assert_eq!(state, Status::Ready);
+    }
+
+    #[test]
+    fn detects_opencode_starting_from_empty_screen() {
+        let mut detector = StateDetector::new(Tool::OpenCode);
         let state = detector.detect("", false);
         assert_eq!(state, Status::Starting);
     }

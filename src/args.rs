@@ -224,6 +224,7 @@ where
                 saw_tool = true;
                 if args.cli_bin == Tool::Codex.default_bin()
                     || args.cli_bin == Tool::Claude.default_bin()
+                    || args.cli_bin == Tool::OpenCode.default_bin()
                 {
                     args.cli_bin = tool.default_bin().to_owned();
                 }
@@ -277,7 +278,7 @@ where
 
     args.passthrough_args = passthrough;
     if !saw_tool && (saw_wrapper_arg || !args.passthrough_args.is_empty()) {
-        return Err("missing required --asc-tool <codex|claude>".to_owned());
+        return Err("missing required --asc-tool <codex|claude|opencode>".to_owned());
     }
     Ok(ParseOutcome::Run(args))
 }
@@ -338,10 +339,10 @@ pub fn help_text(program: &OsStr) -> String {
     let program = program.to_string_lossy();
     let tool_help = match inferred_tool {
         Some(tool) => format!(
-            "  --asc-tool <codex|claude>   Optional here. {program} is pinned to {tool}"
+            "  --asc-tool <codex|claude|opencode>   Optional here. {program} is pinned to {tool}"
         ),
         None => {
-            "  --asc-tool <codex|claude>   Select which CLI to wrap. Required".to_owned()
+            "  --asc-tool <codex|claude|opencode>   Select which CLI to wrap. Required".to_owned()
         }
     };
     let examples = match inferred_tool {
@@ -351,8 +352,11 @@ pub fn help_text(program: &OsStr) -> String {
         Some(Tool::Claude) => format!(
             "  {program}\n  {program} resume --continue\n  {program} --asc-title-format \"{{title}} {{tool_title}}\""
         ),
+        Some(Tool::OpenCode) => format!(
+            "  {program}\n  {program} --asc-cli-bin /path/to/opencode\n  {program} --asc-title-map ready=✅"
+        ),
         None => format!(
-            "  {program} --asc-tool codex\n  {program} --asc-tool codex --asc-title-map ready=✅ --asc-color-map error=#d50000\n  {program} --asc-tool claude --asc-title-format \"{{title}} {{tool_title}}\"\n  {program} --asc-tool codex --model gpt-5\n  asc-codex --model gpt-5\n  asc-claude resume --continue"
+            "  {program} --asc-tool codex\n  {program} --asc-tool codex --asc-title-map ready=✅ --asc-color-map error=#d50000\n  {program} --asc-tool claude --asc-title-format \"{{title}} {{tool_title}}\"\n  {program} --asc-tool opencode --asc-cli-bin /path/to/opencode\n  {program} --asc-tool codex --model gpt-5\n  asc-codex --model gpt-5\n  asc-claude resume --continue\n  asc-opencode"
         ),
     };
     format!(
@@ -398,6 +402,7 @@ fn infer_tool_from_program(program: &OsStr) -> Option<Tool> {
     match name.as_str() {
         "asc-codex" => Some(Tool::Codex),
         "asc-claude" => Some(Tool::Claude),
+        "asc-opencode" => Some(Tool::OpenCode),
         _ => None,
     }
 }

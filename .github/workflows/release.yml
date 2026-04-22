@@ -49,6 +49,7 @@ jobs:
           cp "target/${{ matrix.target }}/release/agent-status-cli" "$package_root/"
           cp "target/${{ matrix.target }}/release/asc-codex" "$package_root/"
           cp "target/${{ matrix.target }}/release/asc-claude" "$package_root/"
+          cp "target/${{ matrix.target }}/release/asc-opencode" "$package_root/"
           cp README.md README_CN.md "$package_root/"
           (
             cd dist

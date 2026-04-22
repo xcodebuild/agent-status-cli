@@ -87,7 +87,7 @@ profile_dir() {
 build_bins() {
   root="$1"
 
-  set -- "$CARGO_BIN" build --locked --bin agent-status-cli --bin asc-codex --bin asc-claude
+  set -- "$CARGO_BIN" build --locked --bin agent-status-cli --bin asc-codex --bin asc-claude --bin asc-opencode
 
   if [ "$BUILD_PROFILE" = "release" ]; then
     set -- "$@" --release
@@ -164,14 +164,14 @@ main() {
   build_dir="$(artifact_dir "$root")"
   mkdir -p "$install_dir"
 
-  for bin_name in agent-status-cli asc-codex asc-claude; do
+  for bin_name in agent-status-cli asc-codex asc-claude asc-opencode; do
     bin_path="$build_dir/$bin_name"
     [ -f "$bin_path" ] || fail "missing built binary: $bin_path"
     install_bin "$bin_path" "$install_dir/$bin_name"
   done
 
   echo "Built profile '$BUILD_PROFILE' from $root"
-  echo "Installed agent-status-cli, asc-codex, and asc-claude to $install_dir"
+  echo "Installed agent-status-cli, asc-codex, asc-claude, and asc-opencode to $install_dir"
   case ":$PATH:" in
     *":$install_dir:"*) ;;
     *)

@@ -5,6 +5,7 @@ use std::fmt;
 pub enum Tool {
     Codex,
     Claude,
+    OpenCode,
 }
 
 impl Tool {
@@ -12,6 +13,7 @@ impl Tool {
         match self {
             Tool::Codex => "codex",
             Tool::Claude => "claude",
+            Tool::OpenCode => "opencode",
         }
     }
 
@@ -19,6 +21,7 @@ impl Tool {
         match self {
             Tool::Codex => "codex",
             Tool::Claude => "claude",
+            Tool::OpenCode => "opencode",
         }
     }
 
@@ -28,14 +31,17 @@ impl Tool {
             // causes visible redraw artifacts during prompt and MCP status updates.
             Tool::Codex => &[],
             Tool::Claude => &[],
+            Tool::OpenCode => &[],
         }
     }
 
     pub fn should_inject_alt_screen_flag(self, args: &[OsString]) -> bool {
         match self {
-            Tool::Codex => !args.iter().any(|arg| arg == "--no-alt-screen")
-                && !self.injected_args().is_empty(),
+            Tool::Codex => {
+                !args.iter().any(|arg| arg == "--no-alt-screen") && !self.injected_args().is_empty()
+            }
             Tool::Claude => false,
+            Tool::OpenCode => false,
         }
     }
 }
@@ -53,8 +59,9 @@ impl std::str::FromStr for Tool {
         match input {
             "codex" => Ok(Tool::Codex),
             "claude" | "claude-code" => Ok(Tool::Claude),
+            "opencode" => Ok(Tool::OpenCode),
             other => Err(format!(
-                "invalid tool '{other}', expected one of: codex, claude"
+                "invalid tool '{other}', expected one of: codex, claude, opencode"
             )),
         }
     }
